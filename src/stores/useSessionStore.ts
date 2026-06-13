@@ -545,8 +545,8 @@ export function useSessionStore() {
   }, [getSlot, notify, resolveSessionId]);
 
   /**
-   * Finalize streaming: convert the streaming message to a regular text message.
-   * The well-known streaming ID is replaced with a unique text message ID.
+   * Finalize streaming: drop the temporary streaming message so the server's
+   * persisted/final message can take its place without creating a duplicate.
    */
   const finalizeStreaming = useCallback((sessionId: string) => {
     const resolvedSessionId = resolveSessionId(sessionId) ?? sessionId;
@@ -555,14 +555,51 @@ export function useSessionStore() {
     const streamId = `__streaming_${resolvedSessionId}`;
     const idx = slot.realtimeMessages.findIndex(m => m.id === streamId);
     if (idx >= 0) {
-      const stream = slot.realtimeMessages[idx];
+      slot.realtimeMessages = slot.realtimeMessages.filter((_, i) => i !== idx);
+      recomputeMergedIfNeeded(slot);
+      notify(resolvedSessionId);
+    }
+  }, [notify, resolveSessionId]);
+
+  /**
+   * Update or create a streaming thinking message (accumulated thinking so far).
+   * Uses a well-known ID so subsequent calls replace the same message.
+   */
+  const updateStreamingThinking = useCallback((sessionId: string, accumulatedThinking: string, msgProvider: LLMProvider) => {
+    const resolvedSessionId = resolveSessionId(sessionId) ?? sessionId;
+    const slot = getSlot(resolvedSessionId);
+    const streamId = `__streaming_thinking_${resolvedSessionId}`;
+    const msg: NormalizedMessage = {
+      id: streamId,
+      sessionId: resolvedSessionId,
+      timestamp: new Date().toISOString(),
+      provider: msgProvider,
+      kind: 'thinking',
+      content: accumulatedThinking,
+    };
+    const idx = slot.realtimeMessages.findIndex(m => m.id === streamId);
+    if (idx >= 0) {
       slot.realtimeMessages = [...slot.realtimeMessages];
-      slot.realtimeMessages[idx] = {
-        ...stream,
-        id: `text_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
-        kind: 'text',
-        role: 'assistant',
-      };
+      slot.realtimeMessages[idx] = msg;
+    } else {
+      slot.realtimeMessages = [...slot.realtimeMessages, msg];
+    }
+    recomputeMergedIfNeeded(slot);
+    notify(resolvedSessionId);
+  }, [getSlot, notify, resolveSessionId]);
+
+  /**
+   * Finalize streaming thinking: drop the temporary streaming thinking message
+   * so the server's persisted/final thinking message can take its place.
+   */
+  const finalizeStreamingThinking = useCallback((sessionId: string) => {
+    const resolvedSessionId = resolveSessionId(sessionId) ?? sessionId;
+    const slot = storeRef.current.get(resolvedSessionId);
+    if (!slot) return;
+    const streamId = `__streaming_thinking_${resolvedSessionId}`;
+    const idx = slot.realtimeMessages.findIndex(m => m.id === streamId);
+    if (idx >= 0) {
+      slot.realtimeMessages = slot.realtimeMessages.filter((_, i) => i !== idx);
       recomputeMergedIfNeeded(slot);
       notify(resolvedSessionId);
     }
@@ -676,6 +713,8 @@ export function useSessionStore() {
     isStale,
     updateStreaming,
     finalizeStreaming,
+    updateStreamingThinking,
+    finalizeStreamingThinking,
     clearRealtime,
     getMessages,
     getSessionSlot,
@@ -684,6 +723,7 @@ export function useSessionStore() {
     getSlot, has, fetchFromServer, fetchMore,
     appendRealtime, appendRealtimeBatch, refreshFromServer,
     setActiveSession, setStatus, isStale, updateStreaming, finalizeStreaming,
+    updateStreamingThinking, finalizeStreamingThinking,
     clearRealtime, getMessages, getSessionSlot, replaceSessionId,
   ]);
 }

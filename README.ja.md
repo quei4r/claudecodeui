@@ -15,7 +15,12 @@
   <a href="https://trendshift.io/repositories/15586" target="_blank"><img src="https://trendshift.io/api/badge/repositories/15586" alt="siteboon%2Fclaudecodeui | Trendshift" style="width: 250px; height: 55px;" width="250" height="55"/></a>
 </p>
 
-<div align="right"><i><a href="./README.md">English</a> · <a href="./README.ru.md">Русский</a> · <a href="./README.de.md">Deutsch</a> · <a href="./README.ko.md">한국어</a> · <a href="./README.zh-CN.md">简体中文</a> · <a href="./README.zh-TW.md">繁體中文</a> · <b>日本語</b> · <a href="./README.tr.md">Türkçe</a></i></div>
+<div align="right"><i><a href="./README.en.md">English</a> · <a href="./README.ru.md">Русский</a> · <a href="./README.de.md">Deutsch</a> · <a href="./README.ko.md">한국어</a> · <a href="./README.md">简体中文</a> · <a href="./README.zh-TW.md">繁體中文</a> · <b>日本語</b> · <a href="./README.tr.md">Türkçe</a></i></div>
+
+> ⚠️ これは CloudCLI UI の個人的な好みに基づいて改造されたフォーク版であり、公式の上流バージョンではありません。
+> 現在の主な変更点：思考過程と回答のリアルタイムストリーミング表示、思考内容のデフォルト展開、ストリーミング時のスマート自動スクロールなど。
+> 将来的には、上流（[siteboon/claudecodeui](https://github.com/siteboon/claudecodeui)）の更新との同期を最大限保つ予定です。
+> **デフォルトの README は中国語（簡体字）です。**
 
 ---
 

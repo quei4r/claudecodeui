@@ -7,6 +7,7 @@ type WebSocketContextType = {
   sendMessage: (message: any) => void;
   latestMessage: any | null;
   isConnected: boolean;
+  consumeMessages: () => any[];
 };
 
 const WebSocketContext = createContext<WebSocketContextType | null>(null);
@@ -33,6 +34,7 @@ const useWebSocketProviderState = (): WebSocketContextType => {
   const [latestMessage, setLatestMessage] = useState<any>(null);
   const [isConnected, setIsConnected] = useState(false);
   const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const messageQueueRef = useRef<any[]>([]);
   const { token } = useAuth();
 
   useEffect(() => {
@@ -76,6 +78,7 @@ const useWebSocketProviderState = (): WebSocketContextType => {
       websocket.onmessage = (event) => {
         try {
           const data = JSON.parse(event.data);
+          messageQueueRef.current.push(data);
           setLatestMessage(data);
         } catch (error) {
           console.error('Error parsing WebSocket message:', error);
@@ -111,13 +114,20 @@ const useWebSocketProviderState = (): WebSocketContextType => {
     }
   }, []);
 
+  const consumeMessages = useCallback(() => {
+    const messages = messageQueueRef.current;
+    messageQueueRef.current = [];
+    return messages;
+  }, []);
+
   const value: WebSocketContextType = useMemo(() =>
   ({
     ws: wsRef.current,
     sendMessage,
     latestMessage,
-    isConnected
-  }), [sendMessage, latestMessage, isConnected]);
+    isConnected,
+    consumeMessages,
+  }), [sendMessage, latestMessage, isConnected, consumeMessages]);
 
   return value;
 };

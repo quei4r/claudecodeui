@@ -15,7 +15,12 @@
   <a href="https://trendshift.io/repositories/15586" target="_blank"><img src="https://trendshift.io/api/badge/repositories/15586" alt="siteboon%2Fclaudecodeui | Trendshift" style="width: 250px; height: 55px;" width="250" height="55"/></a>
 </p>
 
-<div align="right"><i><a href="./README.md">English</a> · <a href="./README.ru.md">Русский</a> · <b>Deutsch</b> · <a href="./README.ko.md">한국어</a> · <a href="./README.zh-CN.md">简体中文</a> · <a href="./README.zh-TW.md">繁體中文</a> · <a href="./README.ja.md">日本語</a> · <a href="./README.tr.md">Türkçe</a></i></div>
+<div align="right"><i><a href="./README.en.md">English</a> · <a href="./README.ru.md">Русский</a> · <b>Deutsch</b> · <a href="./README.ko.md">한국어</a> · <a href="./README.md">简体中文</a> · <a href="./README.zh-TW.md">繁體中文</a> · <a href="./README.ja.md">日本語</a> · <a href="./README.tr.md">Türkçe</a></i></div>
+
+> ⚠️ Dies ist eine nach persönlichen Vorlieben angepasste Fork von CloudCLI UI, nicht die offizielle Upstream-Version.
+> Die wichtigsten aktuellen Änderungen umfassen: echtes Streaming der Überlegungen und Antworten, standardmäßig ausgeklappte Überlegungen, intelligentes automatisches Scrollen während des Streamings usw.
+> Zukünftig wird versucht, mit Upstream-Updates ([siteboon/claudecodeui](https://github.com/siteboon/claudecodeui)) synchron zu bleiben.
+> **Die Standard-README ist auf Chinesisch (vereinfacht).**
 
 ---
 

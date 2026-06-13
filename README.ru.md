@@ -15,7 +15,12 @@
   <a href="https://trendshift.io/repositories/15586" target="_blank"><img src="https://trendshift.io/api/badge/repositories/15586" alt="siteboon%2Fclaudecodeui | Trendshift" style="width: 250px; height: 55px;" width="250" height="55"/></a>
 </p>
 
-<div align="right"><i><a href="./README.md">English</a> · <b>Русский</b> · <a href="./README.de.md">Deutsch</a> · <a href="./README.ko.md">한국어</a> · <a href="./README.zh-CN.md">简体中文</a> · <a href="./README.zh-TW.md">繁體中文</a> · <a href="./README.ja.md">日本語</a> · <a href="./README.tr.md">Türkçe</a></i></div>
+<div align="right"><i><a href="./README.en.md">English</a> · <b>Русский</b> · <a href="./README.de.md">Deutsch</a> · <a href="./README.ko.md">한국어</a> · <a href="./README.md">简体中文</a> · <a href="./README.zh-TW.md">繁體中文</a> · <a href="./README.ja.md">日本語</a> · <a href="./README.tr.md">Türkçe</a></i></div>
+
+> ⚠️ Это форк CloudCLI UI, изменённый в соответствии с личными предпочтениями, а не официальная upstream-версия.
+> Основные текущие изменения: реальное потоковое отображение процесса размышления и ответа, развёрнутые по умолчанию размышления, умная автопрокрутка при потоковой выдаче и т.д.
+> В будущем будем стараться сохранять синхронизацию с upstream ([siteboon/claudecodeui](https://github.com/siteboon/claudecodeui)).
+> **README по умолчанию на китайском (упрощённом).**
 
 ---
 

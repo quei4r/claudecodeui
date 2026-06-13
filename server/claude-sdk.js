@@ -223,6 +223,10 @@ function mapCliOptionsToSDK(options = {}) {
     sdkOptions.resume = sessionId;
   }
 
+  // Emit real Anthropic stream events (content_block_delta, etc.) so the UI can
+  // render genuine token-by-token streaming instead of waiting for full blocks.
+  sdkOptions.includePartialMessages = true;
+
   return sdkOptions;
 }
 
@@ -679,6 +683,41 @@ async function queryClaudeSDK(command, options = {}, ws) {
       addSession(capturedSessionId, queryInstance, tempImagePaths, tempDir, ws);
     }
 
+    // Accumulate the last emitted thinking/assistant text so we can emit deltas
+    // when the SDK yields progressive assistant messages (one content block at a time).
+    let lastThinkingText = '';
+    let lastAssistantText = '';
+    let hasSeenStreamEvent = false;
+
+    function sendStreamBoundary(kind) {
+      ws.send(createNormalizedMessage({ kind, sessionId: capturedSessionId || sessionId || null, provider: 'claude' }));
+    }
+
+    function sendContentDelta(kind, newText) {
+      if (!newText) return;
+      const lastRef = kind === 'thinking_stream_delta' ? lastThinkingText : lastAssistantText;
+      const delta = newText.startsWith(lastRef) ? newText.slice(lastRef.length) : newText;
+      if (delta) {
+        ws.send(createNormalizedMessage({ kind, content: delta, sessionId: capturedSessionId || sessionId || null, provider: 'claude' }));
+      }
+      if (kind === 'thinking_stream_delta') {
+        lastThinkingText = newText;
+      } else {
+        lastAssistantText = newText;
+      }
+    }
+
+    function finalizeStreamingBlocks() {
+      if (lastThinkingText) {
+        sendStreamBoundary('thinking_stream_end');
+        lastThinkingText = '';
+      }
+      if (lastAssistantText) {
+        sendStreamBoundary('stream_end');
+        lastAssistantText = '';
+      }
+    }
+
     // Process streaming messages
     console.log('Starting async generator loop for session:', capturedSessionId || 'NEW');
     for await (const message of queryInstance) {
@@ -702,18 +741,54 @@ async function queryClaudeSDK(command, options = {}, ws) {
         // session_id already captured
       }
 
-      // Transform and normalize message via adapter
       const transformedMessage = transformMessage(message);
       const sid = capturedSessionId || sessionId || null;
 
-      // Use adapter to normalize SDK events into NormalizedMessage[]
-      const normalized = sessionsService.normalizeMessage('claude', transformedMessage, sid);
-      for (const msg of normalized) {
-        // Preserve parentToolUseId from SDK wrapper for subagent tool grouping
-        if (transformedMessage.parentToolUseId && !msg.parentToolUseId) {
-          msg.parentToolUseId = transformedMessage.parentToolUseId;
+      if (transformedMessage.type === 'stream_event' && transformedMessage.event) {
+        // SDK native stream events (content_block_delta, etc.) give real token-level streaming.
+        hasSeenStreamEvent = true;
+        const event = transformedMessage.event;
+        if (event.type === 'content_block_delta') {
+          const delta = event.delta;
+          if (delta?.thinking) {
+            sendContentDelta('thinking_stream_delta', delta.thinking);
+          } else if (delta?.text) {
+            sendContentDelta('stream_delta', delta.text);
+          }
+        } else if (event.type === 'content_block_stop') {
+          finalizeStreamingBlocks();
         }
-        ws.send(msg);
+      } else if (!hasSeenStreamEvent && transformedMessage.type === 'assistant' && transformedMessage.message?.role === 'assistant' && Array.isArray(transformedMessage.message.content)) {
+        // Fallback when the SDK does not emit partial messages: diff complete content blocks
+        // to approximate streaming.
+        for (const part of transformedMessage.message.content) {
+          if (part.type === 'thinking' && typeof part.thinking === 'string') {
+            sendContentDelta('thinking_stream_delta', part.thinking);
+          } else if (part.type === 'text' && typeof part.text === 'string') {
+            sendContentDelta('stream_delta', part.text);
+          }
+        }
+      } else if (transformedMessage.type === 'result') {
+        finalizeStreamingBlocks();
+        // Use adapter to normalize SDK events into NormalizedMessage[]
+        const normalized = sessionsService.normalizeMessage('claude', transformedMessage, sid);
+        for (const msg of normalized) {
+          // Preserve parentToolUseId from SDK wrapper for subagent tool grouping
+          if (transformedMessage.parentToolUseId && !msg.parentToolUseId) {
+            msg.parentToolUseId = transformedMessage.parentToolUseId;
+          }
+          ws.send(msg);
+        }
+      } else {
+        // Use adapter to normalize SDK events into NormalizedMessage[]
+        const normalized = sessionsService.normalizeMessage('claude', transformedMessage, sid);
+        for (const msg of normalized) {
+          // Preserve parentToolUseId from SDK wrapper for subagent tool grouping
+          if (transformedMessage.parentToolUseId && !msg.parentToolUseId) {
+            msg.parentToolUseId = transformedMessage.parentToolUseId;
+          }
+          ws.send(msg);
+        }
       }
 
       // Extract and send token budget updates from assistant/result usage payloads
@@ -722,6 +797,9 @@ async function queryClaudeSDK(command, options = {}, ws) {
         ws.send(createNormalizedMessage({ kind: 'status', text: 'token_budget', tokenBudget: tokenBudgetData, sessionId: capturedSessionId || sessionId || null, provider: 'claude' }));
       }
     }
+
+    // Ensure any trailing streaming state is finalized when the generator ends.
+    finalizeStreamingBlocks();
 
     // Clean up session on completion
     if (capturedSessionId) {

@@ -15,7 +15,12 @@
   <a href="https://trendshift.io/repositories/15586" target="_blank"><img src="https://trendshift.io/api/badge/repositories/15586" alt="siteboon%2Fclaudecodeui | Trendshift" style="width: 250px; height: 55px;" width="250" height="55"/></a>
 </p>
 
-<div align="right"><i><a href="./README.md">English</a> · <a href="./README.ru.md">Русский</a> · <a href="./README.de.md">Deutsch</a> · <a href="./README.ko.md">한국어</a> · <a href="./README.zh-CN.md">简体中文</a> · <a href="./README.zh-TW.md">繁體中文</a> · <a href="./README.ja.md">日本語</a> · <b>Türkçe</b></i></div>
+<div align="right"><i><a href="./README.en.md">English</a> · <a href="./README.ru.md">Русский</a> · <a href="./README.de.md">Deutsch</a> · <a href="./README.ko.md">한국어</a> · <a href="./README.md">简体中文</a> · <a href="./README.zh-TW.md">繁體中文</a> · <a href="./README.ja.md">日本語</a> · <b>Türkçe</b></i></div>
+
+> ⚠️ Bu, CloudCLI UI'ın kişisel tercihlere göre özelleştirilmiş bir çatalıdır; resmi upstream sürümü değildir.
+> Mevcut ana değişiklikler: düşünme süreci ve yanıt metni için gerçek akışlı gösterim, düşünme içeriğinin varsayılan olarak genişletilmesi, akış sırasında akıllı otomatik kaydırma vb.
+> Gelecekte upstream ([siteboon/claudecodeui](https://github.com/siteboon/claudecodeui)) güncellemeleriyle senkronize kalmaya çalışılacaktır.
+> **Varsayılan README Basitleştirilmiş Çince'dir.**
 
 ---
 

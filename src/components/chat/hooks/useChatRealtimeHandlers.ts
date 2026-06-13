@@ -2,6 +2,7 @@ import { useEffect, useRef } from 'react';
 import type { Dispatch, MutableRefObject, SetStateAction } from 'react';
 
 import { usePaletteOps } from '../../../contexts/PaletteOpsContext';
+import { useWebSocket } from '../../../contexts/WebSocketContext';
 import { showCompletionTitleIndicator } from '../../../utils/pageTitleNotification';
 import { playChatCompletionSound } from '../../../utils/notificationSound';
 import type { PendingPermissionRequest, SessionNavigationOptions } from '../types/types';
@@ -63,6 +64,8 @@ interface UseChatRealtimeHandlersArgs {
   pendingViewSessionRef: MutableRefObject<PendingViewSession | null>;
   streamTimerRef: MutableRefObject<number | null>;
   accumulatedStreamRef: MutableRefObject<string>;
+  thinkingStreamTimerRef: MutableRefObject<number | null>;
+  accumulatedThinkingRef: MutableRefObject<string>;
   onSessionInactive?: (sessionId?: string | null) => void;
   onSessionActive?: (sessionId?: string | null) => void;
   onSessionProcessing?: (sessionId?: string | null) => void;
@@ -77,7 +80,7 @@ interface UseChatRealtimeHandlersArgs {
 /* ------------------------------------------------------------------ */
 
 export function useChatRealtimeHandlers({
-  latestMessage,
+  latestMessage: _latestMessage,
   provider,
   selectedSession,
   currentSessionId,
@@ -90,6 +93,8 @@ export function useChatRealtimeHandlers({
   pendingViewSessionRef,
   streamTimerRef,
   accumulatedStreamRef,
+  thinkingStreamTimerRef,
+  accumulatedThinkingRef,
   onSessionInactive,
   onSessionActive,
   onSessionProcessing,
@@ -99,21 +104,25 @@ export function useChatRealtimeHandlers({
   sessionStore,
 }: UseChatRealtimeHandlersArgs) {
   const paletteOps = usePaletteOps();
+  const { consumeMessages } = useWebSocket();
   const lastProcessedMessageRef = useRef<LatestChatMessage | null>(null);
 
   useEffect(() => {
-    if (!latestMessage) return;
-    if (lastProcessedMessageRef.current === latestMessage) return;
-    lastProcessedMessageRef.current = latestMessage;
+    const messages = consumeMessages();
+    if (messages.length === 0) return;
 
-    const activeViewSessionId =
-      selectedSession?.id || currentSessionId || null;
+    messages.forEach((latestMessage) => {
+      if (lastProcessedMessageRef.current === latestMessage) return;
+      lastProcessedMessageRef.current = latestMessage;
 
-    /* ---------------------------------------------------------------- */
-    /*  Legacy messages (no `kind` field) — handle and return           */
-    /* ---------------------------------------------------------------- */
+      const activeViewSessionId =
+        selectedSession?.id || currentSessionId || null;
 
-    const msg = latestMessage as any;
+      /* ---------------------------------------------------------------- */
+      /*  Legacy messages (no `kind` field) — handle and return           */
+      /* ---------------------------------------------------------------- */
+
+      const msg = latestMessage as any;
 
     if (!msg.kind) {
       const messageType = String(msg.type || '');
@@ -182,18 +191,18 @@ export function useChatRealtimeHandlers({
 
     const sid = msg.sessionId || activeViewSessionId;
 
-    // --- Streaming: buffer for performance ---
+    // --- Streaming: sync to display refresh to avoid React tearing ---
     if (msg.kind === 'stream_delta') {
       const text = msg.content || '';
       if (!text) return;
       accumulatedStreamRef.current += text;
-      if (!streamTimerRef.current) {
-        streamTimerRef.current = window.setTimeout(() => {
+      if (sid && !streamTimerRef.current) {
+        streamTimerRef.current = requestAnimationFrame(() => {
           streamTimerRef.current = null;
           if (sid) {
             sessionStore.updateStreaming(sid, accumulatedStreamRef.current, provider);
           }
-        }, 100);
+        });
       }
       // Also route to store for non-active sessions
       if (sid && sid !== activeViewSessionId) {
@@ -204,7 +213,7 @@ export function useChatRealtimeHandlers({
 
     if (msg.kind === 'stream_end') {
       if (streamTimerRef.current) {
-        clearTimeout(streamTimerRef.current);
+        cancelAnimationFrame(streamTimerRef.current);
         streamTimerRef.current = null;
       }
       if (sid) {
@@ -214,6 +223,37 @@ export function useChatRealtimeHandlers({
         sessionStore.finalizeStreaming(sid);
       }
       accumulatedStreamRef.current = '';
+      return;
+    }
+
+    // --- Thinking streaming: sync to display refresh ---
+    if (msg.kind === 'thinking_stream_delta') {
+      const text = msg.content || '';
+      if (!text) return;
+      accumulatedThinkingRef.current += text;
+      if (sid && !thinkingStreamTimerRef.current) {
+        thinkingStreamTimerRef.current = requestAnimationFrame(() => {
+          thinkingStreamTimerRef.current = null;
+          if (sid) {
+            sessionStore.updateStreamingThinking(sid, accumulatedThinkingRef.current, provider);
+          }
+        });
+      }
+      return;
+    }
+
+    if (msg.kind === 'thinking_stream_end') {
+      if (thinkingStreamTimerRef.current) {
+        cancelAnimationFrame(thinkingStreamTimerRef.current);
+        thinkingStreamTimerRef.current = null;
+      }
+      if (sid) {
+        if (accumulatedThinkingRef.current) {
+          sessionStore.updateStreamingThinking(sid, accumulatedThinkingRef.current, provider);
+        }
+        sessionStore.finalizeStreamingThinking(sid);
+      }
+      accumulatedThinkingRef.current = '';
       return;
     }
 
@@ -238,8 +278,6 @@ export function useChatRealtimeHandlers({
         // We no longer synthesize client-side placeholder IDs. Until the provider
         // announces `session_created`, the active id is expected to be null.
         if (!currentSessionId) {
-          console.log('Session created with ID:', newSessionId);
-          console.log('Existing session ID:', currentSessionId);
           setCurrentSessionId(newSessionId);
           setPendingPermissionRequests((prev) =>
             prev.map((r) => (r.sessionId ? r : { ...r, sessionId: newSessionId })),
@@ -262,7 +300,7 @@ export function useChatRealtimeHandlers({
       case 'complete': {
         // Flush any remaining streaming state
         if (streamTimerRef.current) {
-          clearTimeout(streamTimerRef.current);
+          cancelAnimationFrame(streamTimerRef.current);
           streamTimerRef.current = null;
         }
         if (sid && accumulatedStreamRef.current) {
@@ -270,6 +308,17 @@ export function useChatRealtimeHandlers({
           sessionStore.finalizeStreaming(sid);
         }
         accumulatedStreamRef.current = '';
+
+        // Flush any remaining thinking streaming state
+        if (thinkingStreamTimerRef.current) {
+          cancelAnimationFrame(thinkingStreamTimerRef.current);
+          thinkingStreamTimerRef.current = null;
+        }
+        if (sid && accumulatedThinkingRef.current) {
+          sessionStore.updateStreamingThinking(sid, accumulatedThinkingRef.current, provider);
+          sessionStore.finalizeStreamingThinking(sid);
+        }
+        accumulatedThinkingRef.current = '';
 
         setIsLoading(false);
         setCanAbortSession(false);
@@ -373,8 +422,9 @@ export function useChatRealtimeHandlers({
       default:
         break;
     }
-  }, [
-    latestMessage,
+  }); }, [
+    _latestMessage,
+    consumeMessages,
     provider,
     selectedSession,
     currentSessionId,
@@ -387,6 +437,8 @@ export function useChatRealtimeHandlers({
     pendingViewSessionRef,
     streamTimerRef,
     accumulatedStreamRef,
+    thinkingStreamTimerRef,
+    accumulatedThinkingRef,
     onSessionInactive,
     onSessionActive,
     onSessionProcessing,

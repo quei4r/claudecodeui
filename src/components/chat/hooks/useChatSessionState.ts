@@ -134,6 +134,7 @@ export function useChatSessionState({
   const loadAllFinishedTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const loadAllOverlayTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastLoadedSessionKeyRef = useRef<string | null>(null);
+  const prevSelectedSessionIdRef = useRef<string | null>(null);
   /**
    * Tracks the last processed value from `useProjectsState.newSessionTrigger`.
    *
@@ -436,6 +437,7 @@ export function useChatSessionState({
       }
 
       resetStreamingState();
+      prevSelectedSessionIdRef.current = null;
       pendingViewSessionRef.current = null;
       setClaudeStatus(null);
       setCanAbortSession(false);
@@ -458,8 +460,11 @@ export function useChatSessionState({
       return;
     }
 
+    const selectedSessionChanged = prevSelectedSessionIdRef.current !== null && prevSelectedSessionIdRef.current !== selectedSession.id;
+    prevSelectedSessionIdRef.current = selectedSession.id;
+
     const sessionChanged = currentSessionId !== null && currentSessionId !== selectedSession.id;
-    if (sessionChanged) {
+    if (sessionChanged || selectedSessionChanged) {
       resetStreamingState();
       pendingViewSessionRef.current = null;
       setClaudeStatus(null);
@@ -717,7 +722,7 @@ export function useChatSessionState({
     const newHeight = container.scrollHeight;
     const heightDiff = newHeight - prevHeight;
     if (heightDiff > 0 && prevTop > 0) container.scrollTop = prevTop + heightDiff;
-  }, [autoScrollToBottom, chatMessages.length, isLoadingMoreMessages, isUserScrolledUp, scrollToBottom]);
+  }, [autoScrollToBottom, chatMessages, isLoadingMoreMessages, isUserScrolledUp, scrollToBottom]);
 
   useEffect(() => {
     const container = scrollContainerRef.current;

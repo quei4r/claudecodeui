@@ -166,6 +166,8 @@ export type MessageKind =
   | 'thinking'
   | 'stream_delta'
   | 'stream_end'
+  | 'thinking_stream_delta'
+  | 'thinking_stream_end'
   | 'error'
   | 'complete'
   | 'status'

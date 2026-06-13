@@ -15,7 +15,12 @@
   <a href="https://trendshift.io/repositories/15586" target="_blank"><img src="https://trendshift.io/api/badge/repositories/15586" alt="siteboon%2Fclaudecodeui | Trendshift" style="width: 250px; height: 55px;" width="250" height="55"/></a>
 </p>
 
-<div align="right"><i><a href="./README.md">English</a> · <a href="./README.ru.md">Русский</a> · <a href="./README.de.md">Deutsch</a> · <b>한국어</b> · <a href="./README.zh-CN.md">简体中文</a> · <a href="./README.zh-TW.md">繁體中文</a> · <a href="./README.ja.md">日本語</a> · <a href="./README.tr.md">Türkçe</a></i></div>
+<div align="right"><i><a href="./README.en.md">English</a> · <a href="./README.ru.md">Русский</a> · <a href="./README.de.md">Deutsch</a> · <b>한국어</b> · <a href="./README.md">简体中文</a> · <a href="./README.zh-TW.md">繁體中文</a> · <a href="./README.ja.md">日本語</a> · <a href="./README.tr.md">Türkçe</a></i></div>
+
+> ⚠️ 이 저장소는 CloudCLI UI를 개인 취향에 맞게 수정한 포크 버전이며, 공식 업스트림 버전이 아닙니다.
+> 현재 주요 변경 사항: 생각 과정과 본문의 실시간 스트리밍 표시, 생각 내용 기본 펼침, 스트리밍 중 스마트 자동 스크롤 등.
+> 향후 업스트림([siteboon/claudecodeui](https://github.com/siteboon/claudecodeui)) 업데이트와 최대한 동기화할 예정입니다.
+> **기본 README는 중국어(간체)입니다.**
 
 ---
 

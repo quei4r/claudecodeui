@@ -117,6 +117,8 @@ export default function ChatMessagesPane({
   const generatedMessageKeyCounterRef = useRef(0);
 
   // Keep keys stable across prepends so existing MessageComponent instances retain local state.
+  // For messages with a stable id, use the intrinsic key directly so streaming rows don't get
+  // a new React key on every delta update (which causes unmount/remount and scrambled text).
   const getMessageKey = useCallback((message: ChatMessage) => {
     const existingKey = messageKeyMapRef.current.get(message);
     if (existingKey) {
@@ -124,6 +126,12 @@ export default function ChatMessagesPane({
     }
 
     const intrinsicKey = getIntrinsicMessageKey(message);
+
+    if (message.id && intrinsicKey) {
+      messageKeyMapRef.current.set(message, intrinsicKey);
+      return intrinsicKey;
+    }
+
     let candidateKey = intrinsicKey;
 
     if (!candidateKey || allocatedKeysRef.current.has(candidateKey)) {
