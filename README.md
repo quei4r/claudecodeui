@@ -18,7 +18,7 @@
 <div align="right"><i><a href="./README.en.md">English</a> · <a href="./README.ru.md">Русский</a> · <a href="./README.de.md">Deutsch</a> · <a href="./README.ko.md">한국어</a> · <b>简体中文</b> · <a href="./README.zh-TW.md">繁體中文</a> · <a href="./README.ja.md">日本語</a> · <a href="./README.tr.md">Türkçe</a></i></div>
 
 > ⚠️ 这是基于个人喜好改造的 CloudCLI UI 分支版本，并非官方原版。
-> 当前主要改动包括：思考过程与正文的真流式显示、思考内容默认展开、流式输出时的智能自动滚动等。
+> 当前主要改动包括：思考过程与正文的真流式显示、思考内容默认展开、流式输出时的智能自动滚动、流式输出时 Processing 状态与完成音效的即时反馈、thinking 过程的实时时长/token 估算，以及 Claude provider 下的多模态图片直接发送等。
 > 未来会尽量保持与上游（[siteboon/claudecodeui](https://github.com/siteboon/claudecodeui)）更新同步。
 
 ---
@@ -65,6 +65,10 @@
 - **插件系统** - 通过自定义选项卡、后端服务与集成扩展 CloudCLI。 [开始构建 →](https://github.com/cloudcli-ai/cloudcli-plugin-starter)
 - **TaskMaster AI 集成** *(可选)* - 结合 AI 任务规划、PRD 分析与工作流自动化，实现高级项目管理
 - **模型兼容性** - 支持 Claude、GPT、Gemini 模型家族（完整支持列表可通过 `GET /api/providers/:provider/models` 接口获取）
+- **真流式输出** - thinking 过程与正文内容逐 token 实时渲染，thinking 过程默认展开并显示实时时长与 token 估算
+- **更快的状态反馈** - 流式输出结束时 Processing 横幅与完成音效即时消失/播放，无需等待 SDK 最终事件
+- **图片消息** - 在 Claude provider 下直接发送图片，无需本地临时文件中转
+- **智能自动滚动** - 流式输出时自动保持底部可见
 
 ## 快速开始
 

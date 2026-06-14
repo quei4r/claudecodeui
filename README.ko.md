@@ -18,7 +18,7 @@
 <div align="right"><i><a href="./README.en.md">English</a> · <a href="./README.ru.md">Русский</a> · <a href="./README.de.md">Deutsch</a> · <b>한국어</b> · <a href="./README.md">简体中文</a> · <a href="./README.zh-TW.md">繁體中文</a> · <a href="./README.ja.md">日本語</a> · <a href="./README.tr.md">Türkçe</a></i></div>
 
 > ⚠️ 이 저장소는 CloudCLI UI를 개인 취향에 맞게 수정한 포크 버전이며, 공식 업스트림 버전이 아닙니다.
-> 현재 주요 변경 사항: 생각 과정과 본문의 실시간 스트리밍 표시, 생각 내용 기본 펼침, 스트리밍 중 스마트 자동 스크롤 등.
+> 현재 주요 변경 사항: 생각 과정과 본문의 실시간 스트리밍 표시, 생각 내용 기본 펼침, 스트리밍 중 스마트 자동 스크롤, 스트리밍 종료 시 즉각적인 Processing 상태 및 완료 알림음 피드백, 생각 시간·토큰 실시간 추정, Claude 프로바이더에서의 멀티모달 이미지 직접 전송 등.
 > 향후 업스트림([siteboon/claudecodeui](https://github.com/siteboon/claudecodeui)) 업데이트와 최대한 동기화할 예정입니다.
 > **기본 README는 중국어(간체)입니다.**
 
@@ -66,6 +66,10 @@
 - **플러그인 시스템** - 커스텀 탭, 백엔드 서비스, 통합을 추가하여 CloudCLI 확장. [직접 빌드 →](https://github.com/cloudcli-ai/cloudcli-plugin-starter)
 - **TaskMaster AI 통합** *(선택사항)* - AI 중심의 작업 계획, PRD 파싱, 워크플로 자동화를 통한 고급 프로젝트 관리
 - **모델 호환성** - Claude, GPT, Gemini 모델 계열에서 작동 (`GET /api/providers/:provider/models` API에서 전체 지원 모델 확인)
+- **진정한 스트리밍 출력** - 생각 과정과 답변 내용을 토큰 단위로 실시간 렌더링. 생각 내용은 기본적으로 펼쳐지며 실시간 생각 시간·토큰 추정 표시
+- **더 빠른 상태 피드백** - 스트리밍 종료 시 Processing 배너와 완료 알림음을 즉시 트리거. SDK 최종 이벤트를 기다리지 않음
+- **이미지 메시지** - Claude 프로바이더에서 이미지를 직접 전송. 로컬 임시 파일 중계 불필요
+- **스마트 자동 스크롤** - 스트리밍 중 채팅 하단을 자동으로 계속 보여줌
 
 ## 빠른 시작
 

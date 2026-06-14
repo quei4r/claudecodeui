@@ -18,7 +18,7 @@
 <div align="right"><i><a href="./README.en.md">English</a> · <a href="./README.ru.md">Русский</a> · <a href="./README.de.md">Deutsch</a> · <a href="./README.ko.md">한국어</a> · <a href="./README.md">简体中文</a> · <a href="./README.zh-TW.md">繁體中文</a> · <a href="./README.ja.md">日本語</a> · <b>Türkçe</b></i></div>
 
 > ⚠️ Bu, CloudCLI UI'ın kişisel tercihlere göre özelleştirilmiş bir çatalıdır; resmi upstream sürümü değildir.
-> Mevcut ana değişiklikler: düşünme süreci ve yanıt metni için gerçek akışlı gösterim, düşünme içeriğinin varsayılan olarak genişletilmesi, akış sırasında akıllı otomatik kaydırma vb.
+> Mevcut ana değişiklikler: düşünme süreci ve yanıt metni için gerçek akışlı gösterim, düşünme içeriğinin varsayılan olarak genişletilmesi, akış sırasında akıllı otomatik kaydırma, akış bittiğinde anında Processing durumu ve tamamlanma sesi geri bildirimi, düşünme süresi ve token tahmininin gerçek zamanlı gösterimi ve Claude provider üzerinden çok modlu görsel doğrudan gönderimi vb.
 > Gelecekte upstream ([siteboon/claudecodeui](https://github.com/siteboon/claudecodeui)) güncellemeleriyle senkronize kalmaya çalışılacaktır.
 > **Varsayılan README Basitleştirilmiş Çince'dir.**
 
@@ -68,6 +68,10 @@
 - **Eklenti Sistemi** — CloudCLI'ı özel eklentilerle genişlet: yeni sekmeler, arka uç servisleri ve entegrasyonlar ekle. [Kendi eklentini yaz →](https://github.com/cloudcli-ai/cloudcli-plugin-starter)
 - **TaskMaster AI Entegrasyonu** *(İsteğe Bağlı)* — AI destekli görev planlama, PRD ayrıştırma ve iş akışı otomasyonu ile gelişmiş proje yönetimi
 - **Model Uyumluluğu** — Claude, GPT ve Gemini model aileleriyle çalışır (desteklenen tüm modeller için `GET /api/providers/:provider/models` API'sine bak)
+- **Gerçek Akışlı Çıktı** — Düşünme süreci ve yanıt metni token token gerçek zamanlı işlenir; düşünme içeriği varsayılan olarak genişletilir ve canlı süre/token tahmini gösterilir
+- **Daha Hızlı Durum Geri Bildirimi** — Akış bittiğinde Processing banner'ı ve tamamlanma sesi hemen tetiklenir; SDK'nın son olayını beklemez
+- **Görsel Mesajlar** — Claude provider üzerinden görseli doğrudan gönder; yerel geçici dosya aktarımına gerek yok
+- **Akıllı Otomatik Kaydırma** — Akış sırasında sohbetin alt kısmını otomatik olarak görünür tutar
 
 
 ## Hızlı Başlangıç

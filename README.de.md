@@ -18,7 +18,7 @@
 <div align="right"><i><a href="./README.en.md">English</a> · <a href="./README.ru.md">Русский</a> · <b>Deutsch</b> · <a href="./README.ko.md">한국어</a> · <a href="./README.md">简体中文</a> · <a href="./README.zh-TW.md">繁體中文</a> · <a href="./README.ja.md">日本語</a> · <a href="./README.tr.md">Türkçe</a></i></div>
 
 > ⚠️ Dies ist eine nach persönlichen Vorlieben angepasste Fork von CloudCLI UI, nicht die offizielle Upstream-Version.
-> Die wichtigsten aktuellen Änderungen umfassen: echtes Streaming der Überlegungen und Antworten, standardmäßig ausgeklappte Überlegungen, intelligentes automatisches Scrollen während des Streamings usw.
+> Die wichtigsten aktuellen Änderungen umfassen: echtes Streaming der Überlegungen und Antworten, standardmäßig ausgeklappte Überlegungen, intelligentes automatisches Scrollen während des Streamings, sofortige Processing-Statusanzeige und Fertig-Ton, Echtzeit-Schätzung von Dauer und Tokens für Überlegungen sowie direkter multimodaler Bildversand für den Claude-Provider.
 > Zukünftig wird versucht, mit Upstream-Updates ([siteboon/claudecodeui](https://github.com/siteboon/claudecodeui)) synchron zu bleiben.
 > **Die Standard-README ist auf Chinesisch (vereinfacht).**
 
@@ -68,6 +68,10 @@
 - **Plugin-System** – CloudCLI mit eigenen Plugins erweitern – neue Tabs, Backend-Dienste und Integrationen hinzufügen. [Eigenes Plugin erstellen →](https://github.com/cloudcli-ai/cloudcli-plugin-starter)
 - **TaskMaster AI Integration** *(Optional)* – Erweitertes Projektmanagement mit KI-gestützter Aufgabenplanung, PRD-Parsing und Workflow-Automatisierung
 - **Modell-Kompatibilität** – Funktioniert mit Claude, GPT und Gemini (vollständige Liste unterstützter Modelle zur Laufzeit über `GET /api/providers/:provider/models`)
+- **Echtes Streaming** – Überlegungen und Antworten tokenweise in Echtzeit gerendert, Überlegungen standardmäßig ausgeklappt mit Echtzeit-Anzeige von Dauer und Tokens
+- **Schnelleres Status-Feedback** – Processing-Banner und Fertig-Ton werden sofort beim Ende des Streamings ausgelöst, ohne auf das finale SDK-Ereignis zu warten
+- **Bildnachrichten** – Bilder direkt über den Claude-Provider senden, ohne lokale temporäre Dateien
+- **Intelligentes Auto-Scrolling** – Hält den Chat während des Streamings automatisch unten sichtbar
 
 
 ## Schnellstart

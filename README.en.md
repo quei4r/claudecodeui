@@ -18,7 +18,7 @@
 <div align="right"><i><b>English</b> · <a href="./README.ru.md">Русский</a> · <a href="./README.de.md">Deutsch</a> · <a href="./README.ko.md">한국어</a> · <a href="./README.md">简体中文</a> · <a href="./README.zh-TW.md">繁體中文</a> · <a href="./README.ja.md">日本語</a> · <a href="./README.tr.md">Türkçe</a></i></div>
 
 > ⚠️ This is a personally customized fork of CloudCLI UI, not the official upstream version.
-> Current main changes include: real streaming display for both thinking and reply content, thinking expanded by default, smart auto-scroll during streaming, etc.
+> Current main changes include: real streaming display for both thinking and reply content, thinking expanded by default, smart auto-scroll during streaming, instant Processing status and completion sound feedback, real-time thinking duration/token estimates, and direct multimodal image sending for the Claude provider.
 > We will try to keep in sync with upstream ([siteboon/claudecodeui](https://github.com/siteboon/claudecodeui)) updates in the future.
 > **The [default README](./README.md) is in Chinese.**
 
@@ -68,6 +68,10 @@
 - **Plugin System** - Extend CloudCLI with custom plugins — add new tabs, backend services, and integrations. [Build your own →](https://github.com/cloudcli-ai/cloudcli-plugin-starter)
 - **TaskMaster AI Integration** *(Optional)* - Advanced project management with AI-powered task planning, PRD parsing, and workflow automation
 - **Model Compatibility** - Works with Claude, GPT, and Gemini model families (the full list of supported models is available at runtime via `GET /api/providers/:provider/models`)
+- **True Streaming Output** - thinking process and reply content rendered token-by-token in real time, thinking expanded by default with live duration and token estimates
+- **Faster Status Feedback** - Processing banner and completion sound trigger immediately when streaming ends, without waiting for the SDK final event
+- **Image Messages** - Send images directly under the Claude provider, no local temp-file relay needed
+- **Smart Auto-Scroll** - Automatically keeps the bottom of the chat visible during streaming output
 
 
 ## Quick Start
