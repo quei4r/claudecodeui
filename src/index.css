@@ -85,37 +85,38 @@
   }
 
   .dark {
-    --background: 222.2 84% 4.9%;
-    --foreground: 210 40% 98%;
-    --card: 217.2 91.2% 8%;
-    --card-foreground: 210 40% 98%;
-    --popover: 217.2 91.2% 8%;
-    --popover-foreground: 210 40% 98%;
-    --primary: 217.2 91.2% 59.8%;
-    --primary-foreground: 222.2 47.4% 11.2%;
-    --secondary: 217.2 32.6% 17.5%;
-    --secondary-foreground: 210 40% 98%;
-    --muted: 217.2 32.6% 17.5%;
-    --muted-foreground: 215 20.2% 65.1%;
-    --accent: 217.2 32.6% 17.5%;
-    --accent-foreground: 210 40% 98%;
-    --destructive: 0 62.8% 30.6%;
-    --destructive-foreground: 210 40% 98%;
-    --border: 217.2 32.6% 17.5%;
-    --input: 220 13% 46%;
-    --ring: 217.2 91.2% 59.8%;
+    /* Kids-theme inspired palette: pure-black background with blue accents */
+    --background: 0 0% 0%;
+    --foreground: 0 0% 80%;
+    --card: 0 0% 4%;
+    --card-foreground: 0 0% 80%;
+    --popover: 0 0% 4%;
+    --popover-foreground: 0 0% 80%;
+    --primary: 204 100% 42%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 200 5% 17%;
+    --secondary-foreground: 0 0% 80%;
+    --muted: 200 5% 17%;
+    --muted-foreground: 0 0% 55%;
+    --accent: 200 5% 17%;
+    --accent-foreground: 0 0% 80%;
+    --destructive: 11 86% 70%;
+    --destructive-foreground: 0 0% 0%;
+    --border: 0 0% 17%;
+    --input: 0 0% 17%;
+    --ring: 204 100% 42%;
 
     /* Nav design tokens — dark overrides */
-    --nav-glass-bg: 217.2 91.2% 8% / 0.55;
+    --nav-glass-bg: 0 0% 0% / 0.55;
     --nav-glass-blur: 24px;
     --nav-glass-saturate: 1.6;
-    --nav-tab-glow: 217.2 91.2% 59.8% / 0.25;
-    --nav-tab-ring: 217.2 91.2% 59.8% / 0.15;
+    --nav-tab-glow: 204 100% 42% / 0.25;
+    --nav-tab-ring: 204 100% 42% / 0.15;
     --nav-float-shadow: 0 0% 0% / 0.35;
-    --nav-float-ring: 217.2 32.6% 17.5% / 0.3;
-    --nav-divider-color: 217.2 32.6% 17.5% / 0.5;
-    --nav-input-bg: 217.2 32.6% 17.5% / 0.5;
-    --nav-input-focus-ring: 217.2 91.2% 59.8% / 0.25;
+    --nav-float-ring: 0 0% 17% / 0.3;
+    --nav-divider-color: 0 0% 17% / 0.5;
+    --nav-input-bg: 0 0% 17% / 0.5;
+    --nav-input-focus-ring: 204 100% 42% / 0.25;
   }
 }
 
@@ -338,45 +339,45 @@
   
   /* Dark mode scrollbar styles */
   .dark .scrollbar-thin {
-    scrollbar-color: rgba(156, 163, 175, 0.5) transparent;
+    scrollbar-color: rgba(150, 150, 150, 0.5) transparent;
   }
-  
+
   .dark .scrollbar-thin::-webkit-scrollbar-track {
-    background: rgba(31, 41, 55, 0.3);
+    background: rgba(20, 20, 20, 0.5);
   }
-  
+
   .dark .scrollbar-thin::-webkit-scrollbar-thumb {
-    background-color: rgba(156, 163, 175, 0.5);
+    background-color: rgba(150, 150, 150, 0.5);
     border-radius: 3px;
   }
-  
+
   .dark .scrollbar-thin::-webkit-scrollbar-thumb:hover {
-    background-color: rgba(156, 163, 175, 0.7);
+    background-color: rgba(150, 150, 150, 0.7);
   }
-  
+
   /* Global scrollbar styles for main content areas */
   .dark::-webkit-scrollbar {
     width: 8px;
     height: 8px;
   }
-  
+
   .dark::-webkit-scrollbar-track {
-    background: rgba(31, 41, 55, 0.5);
+    background: rgba(20, 20, 20, 0.5);
   }
-  
+
   .dark::-webkit-scrollbar-thumb {
-    background-color: rgba(107, 114, 128, 0.5);
+    background-color: rgba(120, 120, 120, 0.5);
     border-radius: 4px;
   }
-  
+
   .dark::-webkit-scrollbar-thumb:hover {
-    background-color: rgba(107, 114, 128, 0.7);
+    background-color: rgba(120, 120, 120, 0.7);
   }
-  
+
   /* Firefox scrollbar styles */
   .dark {
     scrollbar-width: thin;
-    scrollbar-color: rgba(107, 114, 128, 0.5) rgba(31, 41, 55, 0.5);
+    scrollbar-color: rgba(120, 120, 120, 0.5) rgba(20, 20, 20, 0.5);
   }
   
   /* Ensure checkbox styling is preserved */
@@ -393,101 +394,101 @@
   
   /* Fix checkbox appearance in dark mode */
   .dark input[type="checkbox"] {
-    background-color: rgb(31 41 55); /* gray-800 */
-    border-color: rgb(75 85 99); /* gray-600 */
-    color: rgb(37 99 235); /* blue-600 */
+    background-color: rgb(15 15 15); /* near-black surface */
+    border-color: rgb(60 60 60); /* muted border */
+    color: rgb(0 127 212); /* kids-theme blue */
     color-scheme: dark;
   }
-  
+
   .dark input[type="checkbox"]:checked {
-    background-color: rgb(37 99 235); /* blue-600 */
-    border-color: rgb(37 99 235); /* blue-600 */
+    background-color: rgb(0 127 212); /* kids-theme blue */
+    border-color: rgb(0 127 212); /* kids-theme blue */
   }
-  
+
   .dark input[type="checkbox"]:focus {
-    --tw-ring-color: rgb(59 130 246); /* blue-500 */
-    --tw-ring-offset-color: rgb(31 41 55); /* gray-800 */
+    --tw-ring-color: rgb(55 148 255); /* kids-theme link blue */
+    --tw-ring-offset-color: rgb(15 15 15); /* near-black surface */
   }
-  
+
   /* Fix radio button appearance in dark mode */
   .dark input[type="radio"] {
-    background-color: rgb(31 41 55); /* gray-800 */
-    border-color: rgb(75 85 99); /* gray-600 */
-    color: rgb(37 99 235); /* blue-600 */
+    background-color: rgb(15 15 15); /* near-black surface */
+    border-color: rgb(60 60 60); /* muted border */
+    color: rgb(0 127 212); /* kids-theme blue */
     color-scheme: dark;
   }
-  
+
   .dark input[type="radio"]:checked {
-    background-color: rgb(37 99 235); /* blue-600 */
-    border-color: rgb(37 99 235); /* blue-600 */
+    background-color: rgb(0 127 212); /* kids-theme blue */
+    border-color: rgb(0 127 212); /* kids-theme blue */
   }
-  
+
   .dark input[type="radio"]:focus {
-    --tw-ring-color: rgb(59 130 246); /* blue-500 */
-    --tw-ring-offset-color: rgb(31 41 55); /* gray-800 */
+    --tw-ring-color: rgb(55 148 255); /* kids-theme link blue */
+    --tw-ring-offset-color: rgb(15 15 15); /* near-black surface */
   }
   
   /* Ensure textarea text is always visible in dark mode */
   textarea {
     color-scheme: light dark;
   }
-  
+
   .dark textarea {
-    color: rgb(243 244 246) !important; /* gray-100 */
-    -webkit-text-fill-color: rgb(243 244 246) !important;
-    caret-color: rgb(243 244 246) !important;
+    color: rgb(204 204 204) !important; /* kids-theme foreground */
+    -webkit-text-fill-color: rgb(204 204 204) !important;
+    caret-color: rgb(204 204 204) !important;
   }
-  
+
   /* Fix for focus state in dark mode */
   .dark textarea:focus {
-    color: rgb(243 244 246) !important;
-    -webkit-text-fill-color: rgb(243 244 246) !important;
+    color: rgb(204 204 204) !important;
+    -webkit-text-fill-color: rgb(204 204 204) !important;
   }
-  
+
   /* Fix for iOS/Safari dark mode textarea issues */
   @supports (-webkit-touch-callout: none) {
     .dark textarea {
       background-color: transparent !important;
-      color: rgb(243 244 246) !important;
-      -webkit-text-fill-color: rgb(243 244 246) !important;
+      color: rgb(204 204 204) !important;
+      -webkit-text-fill-color: rgb(204 204 204) !important;
     }
-    
+
     .dark textarea:focus {
       background-color: transparent !important;
-      color: rgb(243 244 246) !important;
-      -webkit-text-fill-color: rgb(243 244 246) !important;
+      color: rgb(204 204 204) !important;
+      -webkit-text-fill-color: rgb(204 204 204) !important;
     }
   }
-  
+
   /* Ensure parent container doesn't override textarea styles */
   .dark .bg-gray-800 textarea {
-    color: rgb(243 244 246) !important;
-    -webkit-text-fill-color: rgb(243 244 246) !important;
+    color: rgb(204 204 204) !important;
+    -webkit-text-fill-color: rgb(204 204 204) !important;
   }
-  
+
   /* Fix focus-within container issues in dark mode */
   .dark .focus-within\:ring-2:focus-within {
-    background-color: rgb(31 41 55) !important; /* gray-800 */
+    background-color: rgb(15 15 15) !important; /* near-black surface */
   }
-  
+
   /* Ensure textarea remains transparent with visible text */
   .dark textarea.bg-transparent {
     background-color: transparent !important;
-    color: rgb(243 244 246) !important;
-    -webkit-text-fill-color: rgb(243 244 246) !important;
+    color: rgb(204 204 204) !important;
+    -webkit-text-fill-color: rgb(204 204 204) !important;
   }
-  
+
   /* Fix placeholder text color to be properly gray */
   textarea::placeholder {
     color: rgb(156 163 175) !important; /* gray-400 */
     opacity: 1 !important;
   }
-  
+
   .dark textarea::placeholder {
     color: rgb(75 85 99) !important; /* gray-600 - darker gray */
     opacity: 1 !important;
   }
-  
+
   /* More specific selector for chat input textarea */
   .dark .bg-gray-800 textarea::placeholder,
   .dark textarea.bg-transparent::placeholder {
@@ -495,7 +496,7 @@
     opacity: 1 !important;
     -webkit-text-fill-color: rgb(75 85 99) !important;
   }
-  
+
   /* Custom class for chat input placeholder */
   .chat-input-placeholder::placeholder {
     color: rgb(156 163 175) !important;
@@ -518,35 +519,35 @@
     opacity: 1 !important;
     -webkit-text-fill-color: rgb(75 85 99) !important;
   }
-  
+
   /* WebKit specific placeholder styles */
   textarea::-webkit-input-placeholder {
     color: rgb(156 163 175) !important;
     opacity: 1 !important;
   }
-  
+
   .dark textarea::-webkit-input-placeholder {
     color: rgb(75 85 99) !important; /* gray-600 - darker gray */
     opacity: 1 !important;
   }
-  
+
   /* Mozilla specific placeholder styles */
   textarea::-moz-placeholder {
     color: rgb(156 163 175) !important;
     opacity: 1 !important;
   }
-  
+
   .dark textarea::-moz-placeholder {
     color: rgb(75 85 99) !important; /* gray-600 - darker gray */
     opacity: 1 !important;
   }
-  
+
   /* IE/Edge specific placeholder styles */
   textarea:-ms-input-placeholder {
     color: rgb(156 163 175) !important;
     opacity: 1 !important;
   }
-  
+
   .dark textarea:-ms-input-placeholder {
     color: rgb(75 85 99) !important; /* gray-600 - darker gray */
     opacity: 1 !important;
@@ -841,14 +842,14 @@
   
   /* Fix focus ring offset color in dark mode */
   .dark [class*="ring-offset"] {
-    --tw-ring-offset-color: rgb(31 41 55); /* gray-800 */
+    --tw-ring-offset-color: rgb(15 15 15); /* near-black surface */
   }
-  
+
   /* Ensure buttons don't show white backgrounds in dark mode */
   .dark button:focus {
-    --tw-ring-offset-color: rgb(31 41 55); /* gray-800 */
+    --tw-ring-offset-color: rgb(15 15 15); /* near-black surface */
   }
-  
+
   /* Fix mobile select dropdown styling */
   @supports (-webkit-touch-callout: none) {
     select {
@@ -856,10 +857,10 @@
       -webkit-appearance: none;
     }
   }
-  
+
   /* Improve select appearance in dark mode */
   .dark select {
-    background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%239CA3AF' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6 9 12 15 18 9'%3e%3c/polyline%3e%3c/svg%3e");
+    background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23CCCCCC' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6 9 12 15 18 9'%3e%3c/polyline%3e%3c/svg%3e");
     background-repeat: no-repeat;
     background-position: right 0.5rem center;
     background-size: 1.5em 1.5em;
@@ -868,7 +869,7 @@
     -moz-appearance: none;
     appearance: none;
   }
-  
+
   select {
     background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%236B7280' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6 9 12 15 18 9'%3e%3c/polyline%3e%3c/svg%3e");
     background-repeat: no-repeat;
@@ -879,7 +880,7 @@
     -moz-appearance: none;
     appearance: none;
   }
-  
+
   /* Fix select option text in mobile */
   select option {
     font-size: 16px !important;
@@ -887,10 +888,10 @@
     background-color: var(--background) !important;
     color: var(--foreground) !important;
   }
-  
+
   .dark select option {
-    background-color: rgb(31 41 55) !important;
-    color: rgb(243 244 246) !important;
+    background-color: rgb(15 15 15) !important; /* near-black surface */
+    color: rgb(204 204 204) !important; /* kids-theme foreground */
   }
 
   /* Tool details chevron animation */

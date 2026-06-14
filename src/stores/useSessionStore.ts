@@ -21,6 +21,7 @@ export type MessageKind =
   | 'thinking'
   | 'stream_delta'
   | 'stream_end'
+  | 'thinking_tokens'
   | 'error'
   | 'complete'
   | 'status'
@@ -62,6 +63,7 @@ export interface NormalizedMessage {
   isError?: boolean;
   text?: string;
   tokens?: number;
+  estimatedTokens?: number;
   canInterrupt?: boolean;
   tokenBudget?: unknown;
   requestId?: string;
@@ -565,10 +567,12 @@ export function useSessionStore() {
    * Update or create a streaming thinking message (accumulated thinking so far).
    * Uses a well-known ID so subsequent calls replace the same message.
    */
-  const updateStreamingThinking = useCallback((sessionId: string, accumulatedThinking: string, msgProvider: LLMProvider) => {
+  const updateStreamingThinking = useCallback((sessionId: string, accumulatedThinking: string, msgProvider: LLMProvider, estimatedTokens?: number) => {
     const resolvedSessionId = resolveSessionId(sessionId) ?? sessionId;
     const slot = getSlot(resolvedSessionId);
     const streamId = `__streaming_thinking_${resolvedSessionId}`;
+    const idx = slot.realtimeMessages.findIndex(m => m.id === streamId);
+    const existingEstimatedTokens = idx >= 0 ? slot.realtimeMessages[idx].estimatedTokens : undefined;
     const msg: NormalizedMessage = {
       id: streamId,
       sessionId: resolvedSessionId,
@@ -576,8 +580,8 @@ export function useSessionStore() {
       provider: msgProvider,
       kind: 'thinking',
       content: accumulatedThinking,
+      estimatedTokens: estimatedTokens ?? existingEstimatedTokens,
     };
-    const idx = slot.realtimeMessages.findIndex(m => m.id === streamId);
     if (idx >= 0) {
       slot.realtimeMessages = [...slot.realtimeMessages];
       slot.realtimeMessages[idx] = msg;

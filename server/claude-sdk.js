@@ -779,6 +779,14 @@ async function queryClaudeSDK(command, options = {}, ws) {
           }
           ws.send(msg);
         }
+      } else if (transformedMessage.type === 'system' && transformedMessage.subtype === 'thinking_tokens' && typeof transformedMessage.estimated_tokens === 'number') {
+        // Real-time thinking token estimates from the SDK.
+        ws.send(createNormalizedMessage({
+          kind: 'thinking_tokens',
+          estimatedTokens: transformedMessage.estimated_tokens,
+          sessionId: capturedSessionId || sessionId || null,
+          provider: 'claude',
+        }));
       } else {
         // Use adapter to normalize SDK events into NormalizedMessage[]
         const normalized = sessionsService.normalizeMessage('claude', transformedMessage, sid);

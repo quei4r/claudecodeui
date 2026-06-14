@@ -14,6 +14,7 @@ interface ReasoningContextValue {
   isOpen: boolean;
   setIsOpen: (open: boolean) => void;
   duration: number | undefined;
+  tokens: number | undefined;
 }
 
 const ReasoningContext = React.createContext<ReasoningContextValue | null>(null);
@@ -37,6 +38,7 @@ export interface ReasoningProps extends React.HTMLAttributes<HTMLDivElement> {
   defaultOpen?: boolean;
   onOpenChange?: (open: boolean) => void;
   duration?: number;
+  tokens?: number;
 }
 
 export const Reasoning = React.memo<ReasoningProps>(
@@ -47,6 +49,7 @@ export const Reasoning = React.memo<ReasoningProps>(
     defaultOpen,
     onOpenChange,
     duration: durationProp,
+    tokens: tokensProp,
     children,
     ...props
   }) => {
@@ -67,23 +70,35 @@ export const Reasoning = React.memo<ReasoningProps>(
 
     // Duration tracking
     const [duration, setDuration] = React.useState<number | undefined>(durationProp);
+    const [tokens, setTokens] = React.useState<number | undefined>(tokensProp);
     const hasEverStreamedRef = React.useRef(isStreaming);
     const [hasAutoClosed, setHasAutoClosed] = React.useState(false);
     const startTimeRef = React.useRef<number | null>(null);
 
-    // Sync external duration prop
+    // Sync external props
     React.useEffect(() => {
       if (durationProp !== undefined) setDuration(durationProp);
     }, [durationProp]);
 
-    // Track streaming start/end for duration
+    React.useEffect(() => {
+      setTokens(tokensProp);
+    }, [tokensProp]);
+
+    // Track streaming start/end and update elapsed time live
     React.useEffect(() => {
       if (isStreaming) {
         hasEverStreamedRef.current = true;
         if (startTimeRef.current === null) {
           startTimeRef.current = Date.now();
         }
-      } else if (startTimeRef.current !== null) {
+        const updateDuration = () => {
+          setDuration(Math.ceil((Date.now() - startTimeRef.current!) / MS_IN_S));
+        };
+        updateDuration();
+        const interval = setInterval(updateDuration, 1000);
+        return () => clearInterval(interval);
+      }
+      if (startTimeRef.current !== null) {
         setDuration(Math.ceil((Date.now() - startTimeRef.current) / MS_IN_S));
         startTimeRef.current = null;
       }
@@ -108,8 +123,8 @@ export const Reasoning = React.memo<ReasoningProps>(
     }, [isStreaming, isOpen, setIsOpen, hasAutoClosed]);
 
     const contextValue = React.useMemo(
-      () => ({ duration, isOpen, isStreaming, setIsOpen }),
-      [duration, isOpen, isStreaming, setIsOpen]
+      () => ({ duration, isOpen, isStreaming, setIsOpen, tokens }),
+      [duration, isOpen, isStreaming, setIsOpen, tokens]
     );
 
     return (
@@ -131,17 +146,28 @@ Reasoning.displayName = 'Reasoning';
 /* ─── ReasoningTrigger ───────────────────────────────────────────── */
 
 export interface ReasoningTriggerProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
-  getThinkingMessage?: (isStreaming: boolean, duration?: number) => React.ReactNode;
+  getThinkingMessage?: (isStreaming: boolean, duration?: number, tokens?: number) => React.ReactNode;
 }
 
-const defaultGetThinkingMessage = (isStreaming: boolean, duration?: number): React.ReactNode => {
+const defaultGetThinkingMessage = (isStreaming: boolean, duration?: number, tokens?: number): React.ReactNode => {
+  const tokenText = typeof tokens === 'number' && tokens >= 0 ? `${tokens.toLocaleString()} tokens` : null;
   if (isStreaming || duration === 0) {
-    return <Shimmer>Thinking...</Shimmer>;
+    const durationText = typeof duration === 'number' && duration > 0 ? `${duration}s` : null;
+    let text = 'Thinking...';
+    if (durationText || tokenText) {
+      text += ' · ';
+      if (durationText) {
+        text += durationText;
+        if (tokenText) text += ' · ';
+      }
+      if (tokenText) text += tokenText;
+    }
+    return <Shimmer>{text}</Shimmer>;
   }
   if (duration === undefined) {
-    return <p>Thought for a few seconds</p>;
+    return tokenText ? <p>Thought for a few seconds · {tokenText}</p> : <p>Thought for a few seconds</p>;
   }
-  return <p>Thought for {duration} seconds</p>;
+  return tokenText ? <p>Thought for {duration} seconds · {tokenText}</p> : <p>Thought for {duration} seconds</p>;
 };
 
 export const ReasoningTrigger = React.memo<ReasoningTriggerProps>(
@@ -151,7 +177,7 @@ export const ReasoningTrigger = React.memo<ReasoningTriggerProps>(
     getThinkingMessage = defaultGetThinkingMessage,
     ...props
   }) => {
-    const { isStreaming, isOpen, duration } = useReasoning();
+    const { isStreaming, isOpen, duration, tokens } = useReasoning();
 
     return (
       <CollapsibleTrigger
@@ -164,7 +190,7 @@ export const ReasoningTrigger = React.memo<ReasoningTriggerProps>(
         {children ?? (
           <>
             <BrainIcon className="h-4 w-4" />
-            {getThinkingMessage(isStreaming, duration)}
+            {getThinkingMessage(isStreaming, duration, tokens)}
             <ChevronDownIcon
               className={cn(
                 'h-4 w-4 transition-transform',

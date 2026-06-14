@@ -257,6 +257,14 @@ export function useChatRealtimeHandlers({
       return;
     }
 
+    if (msg.kind === 'thinking_tokens') {
+      const estimatedTokens = typeof msg.estimatedTokens === 'number' ? msg.estimatedTokens : undefined;
+      if (sid) {
+        sessionStore.updateStreamingThinking(sid, accumulatedThinkingRef.current, provider, estimatedTokens);
+      }
+      return;
+    }
+
     // --- All other messages: route to store ---
     const shouldPersist =
       msg.kind !== 'session_created'

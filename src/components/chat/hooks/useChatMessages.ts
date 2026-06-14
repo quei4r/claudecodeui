@@ -141,15 +141,16 @@ export function normalizedToChatMessages(messages: NormalizedMessage[]): ChatMes
       }
 
       case 'thinking':
-        if (msg.content?.trim()) {
+        if (msg.content?.trim() || msg.id?.startsWith('__streaming_thinking_')) {
           const isStreaming = msg.id?.startsWith('__streaming_thinking_') ?? false;
           converted.push({
             id: msg.id,
             type: 'assistant',
-            content: unescapeWithMathProtection(msg.content),
+            content: unescapeWithMathProtection(msg.content || ''),
             timestamp: msg.timestamp,
             isThinking: true,
             isStreaming,
+            estimatedTokens: msg.estimatedTokens,
             ...sharedMetadata,
           });
         }
