@@ -51,6 +51,7 @@ interface UseChatComposerStateArgs {
   onInputFocusChange?: (focused: boolean) => void;
   onFileOpen?: (filePath: string, diffInfo?: unknown) => void;
   onShowSettings?: () => void;
+  onNavigateToSession?: (sessionId: string, options?: { replace?: boolean }) => void;
   pendingViewSessionRef: { current: PendingViewSession | null };
   scrollToBottom: () => void;
   addMessage: (msg: ChatMessage) => void;
@@ -131,11 +132,24 @@ export type HelpCommandData = {
   }>;
 };
 
-export type CommandModalKind = 'help' | 'models' | 'cost' | 'status';
+export type BranchInfo = {
+  branchId: string;
+  parentSessionId: string;
+  branchPointMessageId: string;
+  branchPointTimestamp?: string | null;
+  name: string | null;
+  createdAt: string;
+};
+
+export type BranchesCommandData = {
+  branches?: BranchInfo[];
+};
+
+export type CommandModalKind = 'help' | 'models' | 'cost' | 'status' | 'branches';
 
 export type CommandModalPayload = {
   kind: CommandModalKind;
-  data: HelpCommandData | ModelCommandData | CostCommandData | StatusCommandData;
+  data: HelpCommandData | ModelCommandData | CostCommandData | StatusCommandData | BranchesCommandData;
 };
 
 const createFakeSubmitEvent = () => {
@@ -182,6 +196,7 @@ export function useChatComposerState({
   onInputFocusChange,
   onFileOpen,
   onShowSettings,
+  onNavigateToSession,
   pendingViewSessionRef,
   scrollToBottom,
   addMessage,
@@ -270,11 +285,50 @@ export function useChatComposerState({
           onShowSettings?.();
           break;
 
+        case 'branch':
+        case 'rewind': {
+          const branchId = data?.branchId;
+          if (typeof branchId === 'string' && onNavigateToSession) {
+            const messageText = typeof data?.messageText === 'string' ? data.messageText : '';
+            if (messageText && selectedProjectId) {
+              safeLocalStorage.setItem(`draft_input_${selectedProjectId}`, messageText);
+              setInput(messageText);
+              inputValueRef.current = messageText;
+              setAttachedImages([]);
+            }
+            onNavigateToSession(branchId);
+            setTimeout(() => {
+              textareaRef.current?.focus();
+            }, 50);
+            addMessage({
+              type: 'assistant',
+              content: action === 'rewind'
+                ? `Rewound. Continuing in branch "${data?.name || branchId}".`
+                : `Created branch "${data?.name || branchId}".`,
+              timestamp: Date.now(),
+            });
+          } else {
+            addMessage({
+              type: 'assistant',
+              content: 'Could not navigate to the new branch.',
+              timestamp: Date.now(),
+            });
+          }
+          break;
+        }
+
+        case 'branches':
+          setCommandModalPayload({
+            kind: 'branches',
+            data: (data || {}) as BranchesCommandData,
+          });
+          break;
+
         default:
           console.warn('Unknown built-in command action:', action);
       }
     },
-    [onFileOpen, onShowSettings, addMessage],
+    [onFileOpen, onShowSettings, onNavigateToSession, addMessage, setInput, inputValueRef, setAttachedImages, textareaRef],
   );
 
   const closeCommandModal = useCallback(() => {
@@ -1024,6 +1078,7 @@ export function useChatComposerState({
   return {
     input,
     setInput,
+    inputValueRef,
     textareaRef,
     inputHighlightRef,
     isTextareaExpanded,

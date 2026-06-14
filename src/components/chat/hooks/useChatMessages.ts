@@ -39,6 +39,7 @@ export function normalizedToChatMessages(messages: NormalizedMessage[]): ChatMes
 
   for (const msg of messages) {
     const sharedMetadata = {
+      sessionId: msg.sessionId,
       displayText: msg.displayText,
       commandName: msg.commandName,
       commandMessage: msg.commandMessage,
@@ -46,6 +47,7 @@ export function normalizedToChatMessages(messages: NormalizedMessage[]): ChatMes
       isLocalCommand: msg.isLocalCommand,
       isLocalCommandStdout: msg.isLocalCommandStdout,
       isCompactSummary: msg.isCompactSummary,
+      images: msg.images as ChatMessage['images'],
     };
 
     switch (msg.kind) {
@@ -151,6 +153,7 @@ export function normalizedToChatMessages(messages: NormalizedMessage[]): ChatMes
             isThinking: true,
             isStreaming,
             estimatedTokens: msg.estimatedTokens,
+            duration: msg.duration,
             ...sharedMetadata,
           });
         }

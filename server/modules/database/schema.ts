@@ -86,13 +86,34 @@ CREATE TABLE IF NOT EXISTS sessions (
     custom_name TEXT,
     project_path TEXT,
     jsonl_path TEXT,
+    parent_session_id TEXT,
     isArchived BOOLEAN DEFAULT 0,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     PRIMARY KEY (session_id),
     FOREIGN KEY (project_path) REFERENCES projects(project_path)
     ON DELETE SET NULL
+    ON UPDATE CASCADE,
+    FOREIGN KEY (parent_session_id) REFERENCES sessions(session_id)
+    ON DELETE SET NULL
     ON UPDATE CASCADE
+);
+`;
+
+export const SESSION_BRANCHES_TABLE_SCHEMA_SQL = `
+CREATE TABLE IF NOT EXISTS session_branches (
+    branch_id TEXT PRIMARY KEY NOT NULL,
+    parent_session_id TEXT NOT NULL,
+    branch_point_message_id TEXT NOT NULL,
+    branch_point_timestamp DATETIME,
+    name TEXT,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (branch_id) REFERENCES sessions(session_id)
+      ON DELETE CASCADE
+      ON UPDATE CASCADE,
+    FOREIGN KEY (parent_session_id) REFERENCES sessions(session_id)
+      ON DELETE CASCADE
+      ON UPDATE CASCADE
 );
 `;
 
@@ -146,6 +167,9 @@ ${SESSIONS_TABLE_SCHEMA_SQL}
 CREATE INDEX IF NOT EXISTS idx_session_ids_lookup ON sessions(session_id);
 -- NOTE: This index is created in migrations after sessions is rebuilt to include project_path.
 -- Creating it here can fail on upgraded installs where the legacy sessions table has no project_path.
+
+${SESSION_BRANCHES_TABLE_SCHEMA_SQL}
+CREATE INDEX IF NOT EXISTS idx_session_branches_parent ON session_branches(parent_session_id);
 
 ${LAST_SCANNED_AT_SQL}
 

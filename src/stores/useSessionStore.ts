@@ -64,6 +64,7 @@ export interface NormalizedMessage {
   text?: string;
   tokens?: number;
   estimatedTokens?: number;
+  duration?: number;
   canInterrupt?: boolean;
   tokenBudget?: unknown;
   requestId?: string;
@@ -99,6 +100,15 @@ export interface SessionSlot {
   hasMore: boolean;
   offset: number;
   tokenUsage: unknown;
+  /**
+   * Thinking duration/token metadata captured at the end of a streaming thinking
+   * block. Applied to the next persisted thinking message for this session and
+   * then cleared.
+   */
+  pendingThinkingMetadata?: {
+    duration?: number;
+    estimatedTokens?: number;
+  };
 }
 
 const EMPTY: NormalizedMessage[] = [];
@@ -167,20 +177,59 @@ function dedupeAdjacentAssistantEchoes(merged: NormalizedMessage[]): NormalizedM
   return out;
 }
 
-function computeMerged(server: NormalizedMessage[], realtime: NormalizedMessage[]): NormalizedMessage[] {
+function computeMerged(server: NormalizedMessage[], realtime: NormalizedMessage[], pending?: { duration?: number; estimatedTokens?: number } | null): NormalizedMessage[] {
+  if (pending) {
+    let lastThinkingIdx = -1;
+    for (let i = server.length - 1; i >= 0; i--) {
+      if (server[i].kind === 'thinking') {
+        lastThinkingIdx = i;
+        break;
+      }
+    }
+    if (lastThinkingIdx >= 0) {
+      const m = server[lastThinkingIdx];
+      if (m.duration === undefined && pending.duration !== undefined) {
+        m.duration = pending.duration;
+      }
+      if (m.estimatedTokens === undefined && pending.estimatedTokens !== undefined) {
+        m.estimatedTokens = pending.estimatedTokens;
+      }
+    }
+  }
+
   if (realtime.length === 0) return server;
   if (server.length === 0) return dedupeAdjacentAssistantEchoes(realtime);
-  const serverIds = new Set(server.map(m => m.id));
+  const serverMap = new Map(server.map(m => [m.id, m]));
+  const serverIds = new Set(serverMap.keys());
   const serverUserTexts = new Set(
     server.map(userTextFingerprint).filter((t): t is string => t !== null),
   );
   const extra = realtime.filter((m) => {
-    if (serverIds.has(m.id)) return false;
+    if (serverIds.has(m.id)) {
+      const serverMsg = serverMap.get(m.id);
+      if (serverMsg) {
+        if (m.duration !== undefined && serverMsg.duration === undefined) {
+          serverMsg.duration = m.duration;
+        }
+        if (m.estimatedTokens !== undefined && serverMsg.estimatedTokens === undefined) {
+          serverMsg.estimatedTokens = m.estimatedTokens;
+        }
+      }
+      return false;
+    }
     // Optimistic user rows use `local_*` ids; once the same text exists on the
     // server-backed copy, drop the realtime echo to avoid duplicate bubbles.
+    // Preserve any images from the optimistic row onto the server-backed row,
+    // because the server transcript usually does not store image attachments.
     if (m.id.startsWith('local_')) {
       const fp = userTextFingerprint(m);
-      if (fp && serverUserTexts.has(fp)) return false;
+      if (fp && serverUserTexts.has(fp)) {
+        const match = server.find((s) => userTextFingerprint(s) === fp);
+        if (match && !match.images && m.images) {
+          match.images = m.images;
+        }
+        return false;
+      }
     }
     return true;
   });
@@ -252,7 +301,11 @@ function recomputeMergedIfNeeded(slot: SessionSlot): boolean {
   }
   slot._lastServerRef = slot.serverMessages;
   slot._lastRealtimeRef = slot.realtimeMessages;
-  slot.merged = computeMerged(slot.serverMessages, slot.realtimeMessages);
+  const pending = slot.pendingThinkingMetadata;
+  slot.merged = computeMerged(slot.serverMessages, slot.realtimeMessages, pending);
+  if (pending) {
+    slot.pendingThinkingMetadata = undefined;
+  }
   return true;
 }
 
@@ -357,6 +410,20 @@ export function useSessionStore() {
 
       const data = await response.json();
       const messages: NormalizedMessage[] = data.messages || [];
+
+      // Preserve image attachments that the server transcript does not store.
+      const imageSources = [...slot.serverMessages, ...slot.realtimeMessages];
+      for (const msg of messages) {
+        if (msg.images) continue;
+        const fp = userTextFingerprint(msg);
+        if (!fp) continue;
+        const source = imageSources.find((s) =>
+          s.images && userTextFingerprint(s) === fp,
+        );
+        if (source) {
+          msg.images = source.images;
+        }
+      }
 
       slot.serverMessages = messages;
       slot.total = data.total ?? messages.length;
@@ -486,11 +553,25 @@ export function useSessionStore() {
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
       const data = await response.json();
 
+      const previousServerMessages = slot.serverMessages;
       slot.serverMessages = data.messages || [];
       slot.total = data.total ?? slot.serverMessages.length;
       slot.hasMore = Boolean(data.hasMore);
       slot.fetchedAt = Date.now();
       // drop realtime messages that the server has caught up with to prevent unbounded growth.
+      // Preserve image attachments that the server transcript does not store.
+      const imageSources = [...previousServerMessages, ...slot.realtimeMessages];
+      for (const msg of slot.serverMessages) {
+        if (msg.images) continue;
+        const fp = userTextFingerprint(msg);
+        if (!fp) continue;
+        const source = imageSources.find((s) =>
+          s.images && userTextFingerprint(s) === fp,
+        );
+        if (source) {
+          msg.images = source.images;
+        }
+      }
       slot.realtimeMessages = [];
       recomputeMergedIfNeeded(slot);
       notify(resolvedSessionId);
@@ -507,6 +588,41 @@ export function useSessionStore() {
     const slot = getSlot(resolvedSessionId);
     slot.status = status;
     notify(resolvedSessionId);
+  }, [getSlot, notify, resolveSessionId]);
+
+  /**
+   * Save thinking-stream metadata (duration / estimated tokens) so it can be
+   * applied to the persisted thinking message when it arrives from the server.
+   */
+  const setPendingThinkingMetadata = useCallback((
+    sessionId: string,
+    metadata: { duration?: number; estimatedTokens?: number },
+  ) => {
+    const resolvedSessionId = resolveSessionId(sessionId) ?? sessionId;
+    const slot = getSlot(resolvedSessionId);
+    slot.pendingThinkingMetadata = metadata;
+    // If the final thinking message is already in realtime (arrived before the
+    // stream-end boundary), patch it directly.
+    let patchedRealtime = false;
+    for (const m of slot.realtimeMessages) {
+      if (m.kind === 'thinking') {
+        if (m.duration === undefined && metadata.duration !== undefined) {
+          m.duration = metadata.duration;
+          patchedRealtime = true;
+        }
+        if (m.estimatedTokens === undefined && metadata.estimatedTokens !== undefined) {
+          m.estimatedTokens = metadata.estimatedTokens;
+          patchedRealtime = true;
+        }
+      }
+    }
+    // Force a recompute so server messages already in the slot pick up the metadata.
+    slot._lastServerRef = EMPTY;
+    slot._lastRealtimeRef = EMPTY;
+    const recomputed = recomputeMergedIfNeeded(slot);
+    if (patchedRealtime || recomputed) {
+      notify(resolvedSessionId);
+    }
   }, [getSlot, notify, resolveSessionId]);
 
   /**
@@ -714,6 +830,7 @@ export function useSessionStore() {
     refreshFromServer,
     setActiveSession,
     setStatus,
+    setPendingThinkingMetadata,
     isStale,
     updateStreaming,
     finalizeStreaming,
@@ -726,7 +843,7 @@ export function useSessionStore() {
   }), [
     getSlot, has, fetchFromServer, fetchMore,
     appendRealtime, appendRealtimeBatch, refreshFromServer,
-    setActiveSession, setStatus, isStale, updateStreaming, finalizeStreaming,
+    setActiveSession, setStatus, setPendingThinkingMetadata, isStale, updateStreaming, finalizeStreaming,
     updateStreamingThinking, finalizeStreamingThinking,
     clearRealtime, getMessages, getSessionSlot, replaceSessionId,
   ]);

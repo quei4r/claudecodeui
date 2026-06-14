@@ -219,6 +219,7 @@ export type NormalizedMessage = {
   isError?: boolean;
   text?: string;
   tokens?: number;
+  duration?: number;
   canInterrupt?: boolean;
   requestId?: string;
   input?: unknown;
@@ -259,6 +260,7 @@ export type FetchHistoryResult = {
   offset: number;
   limit: number | null;
   tokenUsage?: unknown;
+  parentSessionId?: string | null;
 };
 
 // ---------------------------

@@ -56,6 +56,8 @@ interface ChatMessagesPaneProps {
   createDiff: any;
   onFileOpen?: (filePath: string, diffInfo?: unknown) => void;
   onShowSettings?: () => void;
+  onBranchFromMessage?: (messageId: string) => void;
+  onRewindToMessage?: (messageId: string) => void;
   onGrantToolPermission: (suggestion: { entry: string; toolName: string }) => { success: boolean };
   autoExpandTools?: boolean;
   showRawParameters?: boolean;
@@ -105,6 +107,8 @@ export default function ChatMessagesPane({
   createDiff,
   onFileOpen,
   onShowSettings,
+  onBranchFromMessage,
+  onRewindToMessage,
   onGrantToolPermission,
   autoExpandTools,
   showRawParameters,
@@ -268,6 +272,8 @@ export default function ChatMessagesPane({
                 onFileOpen={onFileOpen}
                 onShowSettings={onShowSettings}
                 onGrantToolPermission={onGrantToolPermission}
+                onBranchFromMessage={onBranchFromMessage}
+                onRewindToMessage={onRewindToMessage}
                 autoExpandTools={autoExpandTools}
                 showRawParameters={showRawParameters}
                 showThinking={showThinking}

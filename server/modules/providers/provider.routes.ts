@@ -235,6 +235,34 @@ const parseSessionSearchQuery = (value: unknown): string => {
   return query;
 };
 
+const parseBranchPointMessageId = (payload: unknown): string => {
+  if (!payload || typeof payload !== 'object') {
+    throw new AppError('Request body must be an object.', {
+      code: 'INVALID_REQUEST_BODY',
+      statusCode: 400,
+    });
+  }
+
+  const body = payload as Record<string, unknown>;
+  const messageId = typeof body.messageId === 'string' ? body.messageId.trim() : '';
+  if (!messageId) {
+    throw new AppError('messageId is required.', {
+      code: 'INVALID_BRANCH_POINT_MESSAGE_ID',
+      statusCode: 400,
+    });
+  }
+  return messageId;
+};
+
+const parseOptionalBranchName = (payload: unknown): string | undefined => {
+  if (!payload || typeof payload !== 'object') {
+    return undefined;
+  }
+  const body = payload as Record<string, unknown>;
+  const name = typeof body.name === 'string' ? body.name.trim() : undefined;
+  return name && name.length > 0 ? name : undefined;
+};
+
 const parseSessionSearchLimit = (value: unknown): number => {
   const raw = readOptionalQueryString(value);
   if (!raw) {
@@ -514,5 +542,70 @@ router.get('/search/sessions', asyncHandler(async (req: Request, res: Response) 
     }
   }
 }));
+
+// ----------------- Branch routes -----------------
+router.post(
+  '/sessions/:sessionId/branches',
+  asyncHandler(async (req: Request, res: Response) => {
+    const parentSessionId = parseSessionId(req.params.sessionId);
+    const messageId = parseBranchPointMessageId(req.body);
+    const name = parseOptionalBranchName(req.body);
+    const result = await sessionsService.createBranch(parentSessionId, messageId, name);
+    res.status(201).json(createApiSuccessResponse(result));
+  }),
+);
+
+router.post(
+  '/sessions/:sessionId/rewind',
+  asyncHandler(async (req: Request, res: Response) => {
+    const parentSessionId = parseSessionId(req.params.sessionId);
+    const messageId = parseBranchPointMessageId(req.body);
+    const result = await sessionsService.rewindSession(parentSessionId, messageId);
+    res.status(201).json(createApiSuccessResponse(result));
+  }),
+);
+
+router.get(
+  '/sessions/:sessionId/branches',
+  asyncHandler(async (req: Request, res: Response) => {
+    const parentSessionId = parseSessionId(req.params.sessionId);
+    const branches = sessionsService.listBranches(parentSessionId);
+    res.json(createApiSuccessResponse({ branches }));
+  }),
+);
+
+router.put(
+  '/sessions/branches/:branchId',
+  asyncHandler(async (req: Request, res: Response) => {
+    const branchId = parseSessionId(req.params.branchId);
+    const name = parseOptionalBranchName(req.body);
+    if (!name) {
+      throw new AppError('name is required.', {
+        code: 'INVALID_BRANCH_NAME',
+        statusCode: 400,
+      });
+    }
+    const result = sessionsService.renameBranch(branchId, name);
+    res.json(createApiSuccessResponse(result));
+  }),
+);
+
+router.delete(
+  '/sessions/branches/:branchId',
+  asyncHandler(async (req: Request, res: Response) => {
+    const branchId = parseSessionId(req.params.branchId);
+    const result = await sessionsService.deleteBranch(branchId);
+    res.json(createApiSuccessResponse(result));
+  }),
+);
+
+router.get(
+  '/sessions/branches/:branchId/info',
+  asyncHandler(async (req: Request, res: Response) => {
+    const branchId = parseSessionId(req.params.branchId);
+    const branch = sessionsService.getBranchInfo(branchId);
+    res.json(createApiSuccessResponse({ branch }));
+  }),
+);
 
 export default router;

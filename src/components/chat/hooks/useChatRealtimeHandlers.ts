@@ -5,6 +5,11 @@ import { usePaletteOps } from '../../../contexts/PaletteOpsContext';
 import { useWebSocket } from '../../../contexts/WebSocketContext';
 import { showCompletionTitleIndicator } from '../../../utils/pageTitleNotification';
 import { playChatCompletionSound } from '../../../utils/notificationSound';
+import {
+  clearThinkingHeaderCache,
+  getThinkingHeaderCache,
+  setThinkingHeaderCache,
+} from '../utils/thinkingHeaderCache';
 import type { PendingPermissionRequest, SessionNavigationOptions } from '../types/types';
 import type { ProjectSession, LLMProvider } from '../../../types/app';
 import type { SessionStore, NormalizedMessage } from '../../../stores/useSessionStore';
@@ -106,6 +111,20 @@ export function useChatRealtimeHandlers({
   const paletteOps = usePaletteOps();
   const { consumeMessages } = useWebSocket();
   const lastProcessedMessageRef = useRef<LatestChatMessage | null>(null);
+  const thinkingStartTimeRef = useRef<Map<string, number>>(new Map());
+  const thinkingDurationRef = useRef<Map<string, number>>(new Map());
+  const thinkingEstimatedTokensRef = useRef<Map<string, number>>(new Map());
+  const lastEstimatedTokensRef = useRef<Map<string, number>>(new Map());
+  const lastEstimatedTokensDeltaRef = useRef<Map<string, number>>(new Map());
+  const streamEndClearTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const completionSoundPlayedRef = useRef<Map<string, boolean>>(new Map());
+
+  const cancelStreamEndClearTimer = () => {
+    if (streamEndClearTimerRef.current) {
+      clearTimeout(streamEndClearTimerRef.current);
+      streamEndClearTimerRef.current = null;
+    }
+  };
 
   useEffect(() => {
     const messages = consumeMessages();
@@ -193,6 +212,10 @@ export function useChatRealtimeHandlers({
 
     // --- Streaming: sync to display refresh to avoid React tearing ---
     if (msg.kind === 'stream_delta') {
+      cancelStreamEndClearTimer();
+      if (sid) {
+        completionSoundPlayedRef.current.set(sid, false);
+      }
       const text = msg.content || '';
       if (!text) return;
       accumulatedStreamRef.current += text;
@@ -221,6 +244,25 @@ export function useChatRealtimeHandlers({
           sessionStore.updateStreaming(sid, accumulatedStreamRef.current, provider);
         }
         sessionStore.finalizeStreaming(sid);
+        // The SDK often takes ~1s after the last token to emit `complete`. Hide
+        // the Processing banner as soon as the text stream ends, but keep a short
+        // grace period so a follow-up tool_use/permission_request can keep it up.
+        cancelStreamEndClearTimer();
+        streamEndClearTimerRef.current = setTimeout(() => {
+          streamEndClearTimerRef.current = null;
+          const activeNow = selectedSession?.id || currentSessionId || null;
+          if (sid === activeNow) {
+            setIsLoading(false);
+            setCanAbortSession(false);
+            setClaudeStatus(null);
+            if (!completionSoundPlayedRef.current.get(sid)) {
+              showCompletionTitleIndicator();
+              void playChatCompletionSound();
+              completionSoundPlayedRef.current.set(sid, true);
+            }
+          }
+          onSessionNotProcessing?.(sid);
+        }, 150);
       }
       accumulatedStreamRef.current = '';
       return;
@@ -228,8 +270,18 @@ export function useChatRealtimeHandlers({
 
     // --- Thinking streaming: sync to display refresh ---
     if (msg.kind === 'thinking_stream_delta') {
+      cancelStreamEndClearTimer();
+      if (sid) {
+        completionSoundPlayedRef.current.set(sid, false);
+      }
       const text = msg.content || '';
       if (!text) return;
+      if (sid && !thinkingStartTimeRef.current.has(sid)) {
+        thinkingStartTimeRef.current.set(sid, Date.now());
+        clearThinkingHeaderCache(sid);
+        lastEstimatedTokensRef.current.delete(sid);
+        lastEstimatedTokensDeltaRef.current.delete(sid);
+      }
       accumulatedThinkingRef.current += text;
       if (sid && !thinkingStreamTimerRef.current) {
         thinkingStreamTimerRef.current = requestAnimationFrame(() => {
@@ -251,6 +303,27 @@ export function useChatRealtimeHandlers({
         if (accumulatedThinkingRef.current) {
           sessionStore.updateStreamingThinking(sid, accumulatedThinkingRef.current, provider);
         }
+        const startTime = thinkingStartTimeRef.current.get(sid);
+        const duration = startTime
+          ? Math.ceil((Date.now() - startTime) / 1000)
+          : thinkingDurationRef.current.get(sid);
+        if (startTime && duration !== undefined) {
+          thinkingDurationRef.current.set(sid, duration);
+          thinkingStartTimeRef.current.delete(sid);
+        }
+        // Save this thinking block's metadata to the store so the persisted
+        // thinking row (arriving later, often via server fetch) keeps duration/tokens.
+        const estimatedTokens = thinkingEstimatedTokensRef.current.get(sid);
+        sessionStore.setPendingThinkingMetadata(sid, {
+          duration,
+          estimatedTokens,
+        });
+        setThinkingHeaderCache(sid, {
+          duration,
+          tokens: estimatedTokens,
+        });
+        thinkingEstimatedTokensRef.current.delete(sid);
+        thinkingDurationRef.current.delete(sid);
         sessionStore.finalizeStreamingThinking(sid);
       }
       accumulatedThinkingRef.current = '';
@@ -258,7 +331,34 @@ export function useChatRealtimeHandlers({
     }
 
     if (msg.kind === 'thinking_tokens') {
-      const estimatedTokens = typeof msg.estimatedTokens === 'number' ? msg.estimatedTokens : undefined;
+      let estimatedTokens = typeof msg.estimatedTokens === 'number' ? msg.estimatedTokens : undefined;
+      if (estimatedTokens !== undefined && sid) {
+        const previous = lastEstimatedTokensRef.current.get(sid);
+        const delta = previous !== undefined ? estimatedTokens - previous : estimatedTokens;
+        const previousDelta = lastEstimatedTokensDeltaRef.current.get(sid);
+        // The SDK sometimes sends a final "correction" with a huge delta that
+        // jumps from the smooth progress estimate to the actual total. Ignore
+        // that spike so the displayed token count stays smooth and freezes at
+        // the last progress value.
+        const isSpike =
+          previous !== undefined &&
+          previousDelta !== undefined &&
+          previousDelta > 0 &&
+          delta > Math.max(50, previousDelta * 3);
+        if (isSpike) {
+          estimatedTokens = previous;
+        } else {
+          lastEstimatedTokensRef.current.set(sid, estimatedTokens);
+          if (delta > 0) {
+            lastEstimatedTokensDeltaRef.current.set(sid, delta);
+          }
+          thinkingEstimatedTokensRef.current.set(sid, estimatedTokens);
+          setThinkingHeaderCache(sid, {
+            ...getThinkingHeaderCache(sid),
+            tokens: estimatedTokens,
+          });
+        }
+      }
       if (sid) {
         sessionStore.updateStreamingThinking(sid, accumulatedThinkingRef.current, provider, estimatedTokens);
       }
@@ -274,14 +374,31 @@ export function useChatRealtimeHandlers({
       && msg.kind !== 'permission_cancelled';
 
     if (sid && shouldPersist) {
+      if (msg.kind === 'thinking') {
+        const slot = sessionStore.getSessionSlot(sid);
+        const pending = slot?.pendingThinkingMetadata;
+        if (pending) {
+          if (msg.duration === undefined && pending.duration !== undefined) {
+            msg.duration = pending.duration;
+          }
+          if (msg.estimatedTokens === undefined && pending.estimatedTokens !== undefined) {
+            msg.estimatedTokens = pending.estimatedTokens;
+          }
+          if (slot) {
+            slot.pendingThinkingMetadata = undefined;
+          }
+        }
+      }
       sessionStore.appendRealtime(sid, msg as NormalizedMessage);
     }
 
     // --- UI side effects for specific kinds ---
     switch (msg.kind) {
       case 'session_created': {
+        cancelStreamEndClearTimer();
         const newSessionId = msg.newSessionId;
         if (!newSessionId) break;
+        completionSoundPlayedRef.current.set(newSessionId, false);
 
         // We no longer synthesize client-side placeholder IDs. Until the provider
         // announces `session_created`, the active id is expected to be null.
@@ -306,6 +423,7 @@ export function useChatRealtimeHandlers({
       }
 
       case 'complete': {
+        cancelStreamEndClearTimer();
         // Flush any remaining streaming state
         if (streamTimerRef.current) {
           cancelAnimationFrame(streamTimerRef.current);
@@ -326,6 +444,20 @@ export function useChatRealtimeHandlers({
           sessionStore.updateStreamingThinking(sid, accumulatedThinkingRef.current, provider);
           sessionStore.finalizeStreamingThinking(sid);
         }
+        if (sid) {
+          const startTime = thinkingStartTimeRef.current.get(sid);
+          if (startTime) {
+            thinkingDurationRef.current.set(sid, Math.ceil((Date.now() - startTime) / 1000));
+            thinkingStartTimeRef.current.delete(sid);
+          }
+          thinkingEstimatedTokensRef.current.delete(sid);
+          lastEstimatedTokensRef.current.delete(sid);
+          lastEstimatedTokensDeltaRef.current.delete(sid);
+          const slot = sessionStore.getSessionSlot(sid);
+          if (slot) {
+            slot.pendingThinkingMetadata = undefined;
+          }
+        }
         accumulatedThinkingRef.current = '';
 
         setIsLoading(false);
@@ -344,8 +476,11 @@ export function useChatRealtimeHandlers({
           break;
         }
 
-        showCompletionTitleIndicator();
-        void playChatCompletionSound();
+        if (sid && sid === activeViewSessionId && !completionSoundPlayedRef.current.get(sid)) {
+          showCompletionTitleIndicator();
+          void playChatCompletionSound();
+          completionSoundPlayedRef.current.set(sid, true);
+        }
 
         const actualSessionId =
           typeof msg.actualSessionId === 'string' && msg.actualSessionId.trim().length > 0
@@ -375,6 +510,7 @@ export function useChatRealtimeHandlers({
       }
 
       case 'error': {
+        cancelStreamEndClearTimer();
         setIsLoading(false);
         setCanAbortSession(false);
         setClaudeStatus(null);
@@ -385,6 +521,7 @@ export function useChatRealtimeHandlers({
       }
 
       case 'permission_request': {
+        cancelStreamEndClearTimer();
         if (!msg.requestId) break;
         setPendingPermissionRequests((prev) => {
           if (prev.some((r: PendingPermissionRequest) => r.requestId === msg.requestId)) return prev;
@@ -414,6 +551,7 @@ export function useChatRealtimeHandlers({
         if (msg.text === 'token_budget' && msg.tokenBudget) {
           setTokenBudget(msg.tokenBudget as Record<string, unknown>);
         } else if (msg.text) {
+          cancelStreamEndClearTimer();
           setClaudeStatus({
             text: msg.text,
             tokens: msg.tokens || 0,
@@ -425,12 +563,24 @@ export function useChatRealtimeHandlers({
         break;
       }
 
+      case 'tool_use': {
+        cancelStreamEndClearTimer();
+        if (sid && sid === activeViewSessionId) {
+          onSessionProcessing?.(sid);
+          setIsLoading(true);
+          setCanAbortSession(true);
+          setClaudeStatus({ text: 'Processing', tokens: 0, can_interrupt: true });
+        }
+        break;
+      }
+
       // text, tool_use, tool_result, thinking, interactive_prompt, task_notification
       // → already routed to store above, no UI side effects needed
       default:
         break;
     }
-  }); }, [
+  });
+  }, [
     _latestMessage,
     consumeMessages,
     provider,
@@ -456,4 +606,11 @@ export function useChatRealtimeHandlers({
     sessionStore,
     paletteOps,
   ]);
+
+  // Unmount-only cleanup for the stream-end grace timer. Do NOT put this in the
+  // message-handling effect above: that effect re-runs on every new message and
+  // would cancel the timer before it can fire.
+  useEffect(() => () => {
+    cancelStreamEndClearTimer();
+  }, []);
 }

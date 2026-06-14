@@ -15,6 +15,7 @@ import { Reasoning, ReasoningTrigger, ReasoningContent } from '../../../../share
 
 import { Markdown } from './Markdown';
 import MessageCopyControl from './MessageCopyControl';
+import { getThinkingHeaderCache } from '../../utils/thinkingHeaderCache';
 
 type DiffLine = {
   type: string;
@@ -29,6 +30,8 @@ type MessageComponentProps = {
   onFileOpen?: (filePath: string, diffInfo?: unknown) => void;
   onShowSettings?: () => void;
   onGrantToolPermission?: (suggestion: ClaudePermissionSuggestion) => PermissionGrantResult | null | undefined;
+  onBranchFromMessage?: (messageId: string) => void;
+  onRewindToMessage?: (messageId: string) => void;
   autoExpandTools?: boolean;
   showRawParameters?: boolean;
   showThinking?: boolean;
@@ -44,7 +47,43 @@ type InteractiveOption = {
 
 const COPY_HIDDEN_TOOL_NAMES = new Set(['Bash', 'Edit', 'Write', 'ApplyPatch']);
 
-const MessageComponent = memo(({ message, prevMessage, createDiff, onFileOpen, autoExpandTools, showRawParameters, showThinking, selectedProject, provider }: MessageComponentProps) => {
+function MessageBranchActions({
+  messageId,
+  onBranch,
+  onRewind,
+  className,
+}: {
+  messageId: string;
+  onBranch?: (id: string) => void;
+  onRewind?: (id: string) => void;
+  className?: string;
+}) {
+  if (!onBranch && !onRewind) return null;
+  return (
+    <div className={`flex items-center gap-2 ${className || ''}`}>
+      {onBranch && (
+        <button
+          type="button"
+          onClick={() => onBranch(messageId)}
+          className="hover:underline"
+        >
+          Branch
+        </button>
+      )}
+      {onRewind && (
+        <button
+          type="button"
+          onClick={() => onRewind(messageId)}
+          className="hover:underline"
+        >
+          Rewind
+        </button>
+      )}
+    </div>
+  );
+}
+
+const MessageComponent = memo(({ message, prevMessage, createDiff, onFileOpen, autoExpandTools, showRawParameters, showThinking, selectedProject, provider, onBranchFromMessage, onRewindToMessage }: MessageComponentProps) => {
   const { t } = useTranslation('chat');
   const isGrouped = prevMessage && prevMessage.type === message.type &&
     ((prevMessage.type === 'assistant') ||
@@ -70,6 +109,28 @@ const MessageComponent = memo(({ message, prevMessage, createDiff, onFileOpen, a
     !isCommandOrFileEditToolResponse &&
     !message.isThinking;
 
+  const branchPointMessageId = message.id && !message.id.startsWith('local_') && !message.id.startsWith('__streaming_')
+    ? message.id.split('_text')[0]
+    : undefined;
+
+  const canShowBranchActions = Boolean(
+    branchPointMessageId &&
+    !message.isStreaming &&
+    !message.isLocalCommand &&
+    !message.isCompactSummary &&
+    message.type === 'user' &&
+    !message.isToolUse &&
+    !message.isThinking &&
+    !message.isTaskNotification &&
+    !message.isInteractivePrompt,
+  );
+
+  const cachedThinkingHeader = useMemo(
+    () => (message.isThinking && !message.isStreaming
+      ? getThinkingHeaderCache(String(message.sessionId || ''))
+      : undefined),
+    [message.isThinking, message.isStreaming, message.sessionId],
+  );
 
   useEffect(() => {
     const node = messageRef.current;
@@ -131,6 +192,14 @@ const MessageComponent = memo(({ message, prevMessage, createDiff, onFileOpen, a
               </div>
             )}
             <div className="mt-1 flex items-center justify-end gap-1 text-xs text-blue-100">
+              {canShowBranchActions && (
+                <MessageBranchActions
+                  messageId={branchPointMessageId!}
+                  onBranch={onBranchFromMessage}
+                  onRewind={onRewindToMessage}
+                  className="mr-2"
+                />
+              )}
               {shouldShowUserCopyControl && (
                 <MessageCopyControl content={userCopyContent} messageType="user" />
               )}
@@ -338,7 +407,20 @@ const MessageComponent = memo(({ message, prevMessage, createDiff, onFileOpen, a
               </div>
             ) : message.isThinking ? (
               /* Thinking messages — Reasoning component (ai-elements pattern) */
-              <Reasoning defaultOpen={true} isStreaming={message.isStreaming} tokens={typeof message.estimatedTokens === 'number' ? message.estimatedTokens : undefined}>
+              <Reasoning
+                defaultOpen={true}
+                isStreaming={message.isStreaming}
+                tokens={
+                  typeof message.estimatedTokens === 'number'
+                    ? message.estimatedTokens
+                    : cachedThinkingHeader?.tokens
+                }
+                duration={
+                  typeof message.duration === 'number'
+                    ? message.duration
+                    : cachedThinkingHeader?.duration
+                }
+              >
                 <ReasoningTrigger />
                 <ReasoningContent>
                   <Markdown className="prose prose-sm prose-gray max-w-none dark:prose-invert">

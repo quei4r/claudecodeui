@@ -5,6 +5,7 @@ import path from "path";
 import express from "express";
 
 import { providerModelsService } from "../modules/providers/services/provider-models.service.js";
+import { sessionsService } from "../modules/providers/services/sessions.service.js";
 import { parseFrontMatter } from "../shared/frontmatter.js";
 import { findAppRoot, getModuleDir } from "../utils/runtime-paths.js";
 
@@ -193,6 +194,24 @@ const builtInCommands = [
   {
     name: "/status",
     description: "Show system status and version information",
+    namespace: "builtin",
+    metadata: { type: "builtin" },
+  },
+  {
+    name: "/branch",
+    description: "Create a new conversation branch from the latest message",
+    namespace: "builtin",
+    metadata: { type: "builtin" },
+  },
+  {
+    name: "/rewind",
+    description: "Rewind the conversation to the latest message and archive the original session",
+    namespace: "builtin",
+    metadata: { type: "builtin" },
+  },
+  {
+    name: "/branches",
+    description: "List branches of the current conversation",
     namespace: "builtin",
     metadata: { type: "builtin" },
   },
@@ -429,6 +448,62 @@ Custom commands can be created in:
       data: {
         message: "Opening settings...",
       },
+    };
+  },
+
+  "/branch": async (args, context) => {
+    const sessionId = context?.sessionId;
+    if (!sessionId) {
+      throw new Error("No active session to branch from.");
+    }
+    const history = await sessionsService.fetchHistory(sessionId, { limit: 100, offset: 0 });
+    const lastUserMessage = [...history.messages].reverse().find((m) => m.role === 'user');
+    if (!lastUserMessage?.id) {
+      throw new Error("No user message to branch from.");
+    }
+    // Claude user messages with array content get suffixed ids like uuid_text_0,
+    // but the JSONL uuid field is the base id.
+    const branchPointMessageId = String(lastUserMessage.id).split('_text')[0];
+    const messageText = String(lastUserMessage.content || '');
+    const name = args.join(" ").trim() || undefined;
+    const result = await sessionsService.createBranch(sessionId, branchPointMessageId, name);
+    return {
+      type: "builtin",
+      action: "branch",
+      data: { ...result, messageText },
+    };
+  },
+
+  "/rewind": async (args, context) => {
+    const sessionId = context?.sessionId;
+    if (!sessionId) {
+      throw new Error("No active session to rewind.");
+    }
+    const history = await sessionsService.fetchHistory(sessionId, { limit: 100, offset: 0 });
+    const lastUserMessage = [...history.messages].reverse().find((m) => m.role === 'user');
+    if (!lastUserMessage?.id) {
+      throw new Error("No user message to rewind to.");
+    }
+    const branchPointMessageId = String(lastUserMessage.id).split('_text')[0];
+    const messageText = String(lastUserMessage.content || '');
+    const result = await sessionsService.rewindSession(sessionId, branchPointMessageId);
+    return {
+      type: "builtin",
+      action: "rewind",
+      data: { ...result, messageText },
+    };
+  },
+
+  "/branches": async (args, context) => {
+    const sessionId = context?.sessionId;
+    if (!sessionId) {
+      throw new Error("No active session to list branches for.");
+    }
+    const branches = sessionsService.listBranches(sessionId);
+    return {
+      type: "builtin",
+      action: "branches",
+      data: { branches },
     };
   },
 };

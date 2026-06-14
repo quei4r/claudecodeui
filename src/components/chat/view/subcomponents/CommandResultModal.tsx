@@ -8,6 +8,7 @@ import {
   Coins,
   Cpu,
   Gauge,
+  GitBranch,
   Package,
   Search,
   Server,
@@ -21,6 +22,8 @@ import {
 import { Badge, Button, Dialog, DialogContent, DialogTitle, Input } from '../../../../shared/view/ui';
 import type { LLMProvider, ProviderModelsCacheInfo, ProviderModelsDefinition } from '../../../../types/app';
 import type {
+  BranchesCommandData,
+  BranchInfo,
   CommandModalPayload,
   CostCommandData,
   HelpCommandData,
@@ -45,6 +48,7 @@ type CommandResultModalProps = {
     changed: boolean;
     model: string;
   }>;
+  onNavigateToSession?: (sessionId: string, options?: { replace?: boolean }) => void;
 };
 
 type CommandEntry = {
@@ -602,6 +606,44 @@ function StatusContent({ data }: { data: StatusCommandData }) {
   );
 }
 
+function BranchesContent({
+  data,
+  onNavigateToSession,
+  onClose,
+}: {
+  data: BranchesCommandData;
+  onNavigateToSession?: (sessionId: string) => void;
+  onClose: () => void;
+}) {
+  const branches = data.branches || [];
+  if (branches.length === 0) {
+    return (
+      <p className="text-sm text-muted-foreground">
+        No branches yet. Use <code className="rounded bg-muted px-1">/branch</code> to create one.
+      </p>
+    );
+  }
+
+  return (
+    <div className="flex flex-col gap-2 overflow-auto">
+      {branches.map((branch) => (
+        <Button
+          key={branch.branchId}
+          variant="outline"
+          className="justify-start rounded-xl"
+          onClick={() => {
+            onNavigateToSession?.(branch.branchId);
+            onClose();
+          }}
+        >
+          <GitBranch className="mr-2 h-4 w-4 shrink-0" />
+          <span className="truncate">{branch.name || branch.branchId}</span>
+        </Button>
+      ))}
+    </div>
+  );
+}
+
 export default function CommandResultModal({
   payload,
   onClose,
@@ -611,6 +653,7 @@ export default function CommandResultModal({
   onHardRefreshProviderModels,
   currentSessionId,
   onSelectProviderModel,
+  onNavigateToSession,
 }: CommandResultModalProps) {
   const isOpen = Boolean(payload);
   const kind = payload?.kind;
@@ -640,6 +683,12 @@ export default function CommandResultModal({
       title: 'System Status',
       subtitle: 'Version, provider, runtime, and environment details in one place.',
       icon: Activity,
+    },
+    branches: {
+      eyebrow: 'Conversation branches',
+      title: 'Branches',
+      subtitle: 'Jump to a forked version of this conversation.',
+      icon: GitBranch,
     },
   } as const;
 
@@ -709,6 +758,13 @@ export default function CommandResultModal({
           )}
           {payload?.kind === 'cost' && <CostContent data={payload.data as CostCommandData} />}
           {payload?.kind === 'status' && <StatusContent data={payload.data as StatusCommandData} />}
+          {payload?.kind === 'branches' && (
+            <BranchesContent
+              data={payload.data as BranchesCommandData}
+              onNavigateToSession={onNavigateToSession}
+              onClose={onClose}
+            />
+          )}
         </div>
 
         <div className="flex shrink-0 flex-col gap-3 border-t border-border/70 bg-muted/20 px-4 py-3 text-xs text-muted-foreground sm:flex-row sm:items-center sm:justify-between sm:px-6">

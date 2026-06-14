@@ -26,6 +26,7 @@ export interface SubagentChildTool {
 }
 
 export interface ChatMessage {
+  id?: string;
   type: string;
   content?: string;
   displayText?: string;

@@ -75,14 +75,19 @@ export const Reasoning = React.memo<ReasoningProps>(
     const [hasAutoClosed, setHasAutoClosed] = React.useState(false);
     const startTimeRef = React.useRef<number | null>(null);
 
-    // Sync external props
+    // Sync external props only while streaming; once streaming ends, freeze the
+    // last displayed value so the header does not jump.
     React.useEffect(() => {
-      if (durationProp !== undefined) setDuration(durationProp);
-    }, [durationProp]);
+      if (durationProp !== undefined && isStreaming) {
+        setDuration(durationProp);
+      }
+    }, [durationProp, isStreaming]);
 
     React.useEffect(() => {
-      setTokens(tokensProp);
-    }, [tokensProp]);
+      if (tokensProp !== undefined && isStreaming) {
+        setTokens(tokensProp);
+      }
+    }, [tokensProp, isStreaming]);
 
     // Track streaming start/end and update elapsed time live
     React.useEffect(() => {
@@ -90,6 +95,9 @@ export const Reasoning = React.memo<ReasoningProps>(
         hasEverStreamedRef.current = true;
         if (startTimeRef.current === null) {
           startTimeRef.current = Date.now();
+          // New thinking stream: reset stale values from a previous stream.
+          setDuration(undefined);
+          setTokens(undefined);
         }
         const updateDuration = () => {
           setDuration(Math.ceil((Date.now() - startTimeRef.current!) / MS_IN_S));
@@ -167,7 +175,7 @@ const defaultGetThinkingMessage = (isStreaming: boolean, duration?: number, toke
   if (duration === undefined) {
     return tokenText ? <p>Thought for a few seconds · {tokenText}</p> : <p>Thought for a few seconds</p>;
   }
-  return tokenText ? <p>Thought for {duration} seconds · {tokenText}</p> : <p>Thought for {duration} seconds</p>;
+  return tokenText ? <p>Thought for {duration} second{duration === 1 ? '' : 's'} · {tokenText}</p> : <p>Thought for {duration} second{duration === 1 ? '' : 's'}</p>;
 };
 
 export const ReasoningTrigger = React.memo<ReasoningTriggerProps>(

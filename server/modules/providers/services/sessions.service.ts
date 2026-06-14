@@ -1,8 +1,10 @@
 import fsp from 'node:fs/promises';
 import path from 'node:path';
+import { randomUUID } from 'node:crypto';
 
 import { projectsDb, sessionsDb } from '@/modules/database/index.js';
 import { providerRegistry } from '@/modules/providers/provider.registry.js';
+import { copyTranscriptToBranch } from '@/modules/providers/utils/branch-transcript.utils.js';
 import type {
   FetchHistoryOptions,
   FetchHistoryResult,
@@ -94,7 +96,7 @@ export const sessionsService = {
    * Provider and provider-specific lookup hints are resolved from the indexed
    * session metadata in the database.
    */
-  fetchHistory(
+  async fetchHistory(
     sessionId: string,
     options: Pick<FetchHistoryOptions, 'limit' | 'offset'> = {},
   ): Promise<FetchHistoryResult> {
@@ -107,11 +109,16 @@ export const sessionsService = {
     }
 
     const provider = session.provider as LLMProvider;
-    return providerRegistry.resolveProvider(provider).sessions.fetchHistory(sessionId, {
+    const history = await providerRegistry.resolveProvider(provider).sessions.fetchHistory(sessionId, {
       limit: options.limit ?? null,
       offset: options.offset ?? 0,
       projectPath: session.project_path ?? '',
     });
+
+    return {
+      ...history,
+      parentSessionId: session.parent_session_id ?? null,
+    };
   },
 
   /**
@@ -229,5 +236,213 @@ export const sessionsService = {
 
     sessionsDb.updateSessionCustomName(sessionId, summary);
     return { sessionId, summary };
+  },
+
+  /**
+   * Creates a new branch session from an existing message in the parent session.
+   * The parent transcript is copied up to (and including) the branch point message,
+   * and all sessionId fields are rewritten to the new branch id.
+   */
+  async createBranch(
+    parentSessionId: string,
+    branchPointMessageId: string,
+    name?: string,
+    includeBranchPoint = false,
+  ): Promise<{
+    branchId: string;
+    parentSessionId: string;
+    branchPointMessageId: string;
+    name: string;
+  }> {
+    const parent = sessionsDb.getSessionById(parentSessionId);
+    if (!parent) {
+      throw new AppError(`Session "${parentSessionId}" was not found.`, {
+        code: 'SESSION_NOT_FOUND',
+        statusCode: 404,
+      });
+    }
+
+    if (!parent.jsonl_path) {
+      throw new AppError(`Session "${parentSessionId}" has no transcript file.`, {
+        code: 'SESSION_NO_TRANSCRIPT',
+        statusCode: 400,
+      });
+    }
+
+    if (parent.provider !== 'claude') {
+      throw new AppError(`Branching is only supported for Claude sessions right now.`, {
+        code: 'BRANCH_PROVIDER_NOT_SUPPORTED',
+        statusCode: 400,
+      });
+    }
+
+    // Verify the branch point message actually exists in the transcript.
+    const transcriptContent = await fsp.readFile(parent.jsonl_path, 'utf8');
+    const hasBranchPoint = transcriptContent.split(/\r?\n/).some((line) => {
+      if (!line.trim()) return false;
+      try {
+        const entry = JSON.parse(line) as Record<string, unknown>;
+        return entry.uuid === branchPointMessageId;
+      } catch {
+        return false;
+      }
+    });
+    if (!hasBranchPoint) {
+      throw new AppError(
+        `Message "${branchPointMessageId}" was not found in the transcript. Only persisted messages can be branched.`,
+        {
+          code: 'BRANCH_POINT_NOT_FOUND',
+          statusCode: 400,
+        },
+      );
+    }
+
+    const branchId = randomUUID();
+    const projectDir = path.dirname(parent.jsonl_path);
+    const newJsonlPath = path.join(projectDir, `${branchId}.jsonl`);
+    const branchInfo = await copyTranscriptToBranch(
+      parent.jsonl_path,
+      newJsonlPath,
+      branchPointMessageId,
+      branchId,
+      { includeBranchPoint },
+    );
+
+    const branchName = (name?.trim() || `Branch of ${parentSessionId.slice(0, 8)}`).slice(0, 200);
+    const now = new Date().toISOString();
+
+    sessionsDb.createSession(
+      branchId,
+      parent.provider,
+      parent.project_path ?? '',
+      branchName,
+      now,
+      now,
+      newJsonlPath,
+      parentSessionId,
+    );
+    sessionsDb.createBranch(
+      branchId,
+      parentSessionId,
+      branchPointMessageId,
+      branchInfo.branchPointTimestamp,
+      branchName,
+    );
+
+    return {
+      branchId,
+      parentSessionId,
+      branchPointMessageId,
+      name: branchName,
+    };
+  },
+
+  /**
+   * Rewinds a session by branching at a message and archiving the parent.
+   */
+  async rewindSession(
+    parentSessionId: string,
+    branchPointMessageId: string,
+  ): Promise<{
+    branchId: string;
+    parentSessionId: string;
+    branchPointMessageId: string;
+    name: string;
+  }> {
+    const branch = await this.createBranch(
+      parentSessionId,
+      branchPointMessageId,
+      `Rewound from ${parentSessionId.slice(0, 8)}`,
+      false,
+    );
+    sessionsDb.updateSessionIsArchived(parentSessionId, true);
+    return branch;
+  },
+
+  /**
+   * Lists all branches forked from a session.
+   */
+  listBranches(parentSessionId: string): Array<{
+    branchId: string;
+    parentSessionId: string;
+    branchPointMessageId: string;
+    branchPointTimestamp: string | null;
+    name: string | null;
+    createdAt: string;
+  }> {
+    const parent = sessionsDb.getSessionById(parentSessionId);
+    if (!parent) {
+      throw new AppError(`Session "${parentSessionId}" was not found.`, {
+        code: 'SESSION_NOT_FOUND',
+        statusCode: 404,
+      });
+    }
+    return sessionsDb.getBranchesByParentSessionId(parentSessionId);
+  },
+
+  /**
+   * Renames a branch.
+   */
+  renameBranch(branchId: string, name: string): { branchId: string; name: string } {
+    const branch = sessionsDb.getBranchById(branchId);
+    if (!branch) {
+      throw new AppError(`Branch "${branchId}" was not found.`, {
+        code: 'BRANCH_NOT_FOUND',
+        statusCode: 404,
+      });
+    }
+    const trimmedName = name.trim().slice(0, 200);
+    sessionsDb.updateBranchName(branchId, trimmedName);
+    sessionsDb.updateSessionCustomName(branchId, trimmedName);
+    return { branchId, name: trimmedName };
+  },
+
+  /**
+   * Deletes a branch record and its transcript files.
+   */
+  async deleteBranch(branchId: string): Promise<{ deleted: boolean }> {
+    const branch = sessionsDb.getBranchById(branchId);
+    if (!branch) {
+      throw new AppError(`Branch "${branchId}" was not found.`, {
+        code: 'BRANCH_NOT_FOUND',
+        statusCode: 404,
+      });
+    }
+
+    const session = sessionsDb.getSessionById(branchId);
+    if (session?.jsonl_path) {
+      await removeFileIfExists(session.jsonl_path);
+      const sessionDir = path.join(path.dirname(session.jsonl_path), branchId);
+      try {
+        await fsp.rm(sessionDir, { recursive: true, force: true });
+      } catch {
+        // ignore cleanup errors
+      }
+    }
+
+    sessionsDb.deleteBranchById(branchId);
+    sessionsDb.deleteSessionById(branchId);
+    return { deleted: true };
+  },
+
+  /**
+   * Returns branch metadata for a session if it is a branch.
+   */
+  getBranchInfo(branchId: string): {
+    branchId: string;
+    parentSessionId: string;
+    branchPointMessageId: string;
+    branchPointTimestamp: string | null;
+    name: string | null;
+    createdAt: string;
+    parentName: string | null;
+  } | null {
+    const branch = sessionsDb.getBranchById(branchId);
+    if (!branch) return null;
+    const parent = sessionsDb.getSessionById(branch.parentSessionId);
+    return {
+      ...branch,
+      parentName: parent?.custom_name ?? null,
+    };
   },
 };

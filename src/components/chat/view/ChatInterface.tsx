@@ -1,8 +1,9 @@
-import React, { useCallback, useEffect, useMemo, useRef } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import { useTasksSettings } from '../../../contexts/TasksSettingsContext';
 import PermissionContext from '../../../contexts/PermissionContext';
+import { api } from '../../../utils/api';
 import { QuickSettingsPanel } from '../../quick-settings-panel';
 import type { ChatInterfaceProps, Provider  } from '../types/types';
 import type { LLMProvider } from '../../../types/app';
@@ -10,6 +11,7 @@ import { useChatProviderState } from '../hooks/useChatProviderState';
 import { useChatSessionState } from '../hooks/useChatSessionState';
 import { useChatRealtimeHandlers } from '../hooks/useChatRealtimeHandlers';
 import { useChatComposerState } from '../hooks/useChatComposerState';
+import { safeLocalStorage } from '../utils/chatStorage';
 import { useSessionStore } from '../../../stores/useSessionStore';
 
 import ChatMessagesPane from './subcomponents/ChatMessagesPane';
@@ -142,9 +144,31 @@ function ChatInterface({
     sessionStore,
   });
 
+  const [branchInfo, setBranchInfo] = useState<{ branchId: string; name: string | null; parentName: string | null } | null>(null);
+
+  useEffect(() => {
+    if (!currentSessionId) {
+      setBranchInfo(null);
+      return;
+    }
+    let cancelled = false;
+    setBranchInfo(null);
+    api.get(`/providers/sessions/${encodeURIComponent(currentSessionId)}/branch-info`)
+      .then(async (res) => {
+        if (!res.ok) return;
+        const json = await res.json();
+        if (!cancelled && json?.data?.branch) {
+          setBranchInfo(json.data.branch);
+        }
+      })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [currentSessionId]);
+
   const {
     input,
     setInput,
+    inputValueRef,
     textareaRef,
     inputHighlightRef,
     isTextareaExpanded,
@@ -208,6 +232,7 @@ function ChatInterface({
     onInputFocusChange,
     onFileOpen,
     onShowSettings,
+    onNavigateToSession,
     pendingViewSessionRef,
     scrollToBottom,
     addMessage,
@@ -217,6 +242,78 @@ function ChatInterface({
     setIsUserScrolledUp,
     setPendingPermissionRequests,
   });
+
+  const handleBranchFromMessage = useCallback(async (messageId: string) => {
+    if (!currentSessionId) return;
+    const targetMessage = chatMessages.find(
+      (m) => m.id && m.id.split('_text')[0] === messageId,
+    );
+    const messageText = targetMessage?.content || '';
+    try {
+      const res = await api.post(`/providers/sessions/${encodeURIComponent(currentSessionId)}/branches`, { messageId });
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => ({}));
+        const serverMessage = errorData?.error?.message || errorData?.message;
+        throw new Error(serverMessage || `Failed to create branch (${res.status})`);
+      }
+      const json = await res.json();
+      const branchId = json?.data?.branchId;
+      if (branchId) {
+        safeLocalStorage.setItem(`draft_input_${selectedProject?.projectId}`, messageText);
+        setInput(messageText);
+        inputValueRef.current = messageText;
+        setAttachedImages([]);
+        onNavigateToSession?.(branchId);
+        setTimeout(() => {
+          textareaRef.current?.focus();
+        }, 50);
+      }
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Unknown error';
+      console.error('Branch failed:', err);
+      addMessage({
+        type: 'error',
+        content: `Failed to create branch: ${message}`,
+        timestamp: Date.now(),
+      });
+    }
+  }, [currentSessionId, chatMessages, setInput, inputValueRef, setAttachedImages, onNavigateToSession, addMessage, textareaRef, selectedProject]);
+
+  const handleRewindToMessage = useCallback(async (messageId: string) => {
+    if (!currentSessionId) return;
+    const targetMessage = chatMessages.find(
+      (m) => m.id && m.id.split('_text')[0] === messageId,
+    );
+    const messageText = targetMessage?.content || '';
+    try {
+      const res = await api.post(`/providers/sessions/${encodeURIComponent(currentSessionId)}/rewind`, { messageId });
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => ({}));
+        const serverMessage = errorData?.error?.message || errorData?.message;
+        throw new Error(serverMessage || `Failed to rewind (${res.status})`);
+      }
+      const json = await res.json();
+      const branchId = json?.data?.branchId;
+      if (branchId) {
+        safeLocalStorage.setItem(`draft_input_${selectedProject?.projectId}`, messageText);
+        setInput(messageText);
+        inputValueRef.current = messageText;
+        setAttachedImages([]);
+        onNavigateToSession?.(branchId);
+        setTimeout(() => {
+          textareaRef.current?.focus();
+        }, 50);
+      }
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Unknown error';
+      console.error('Rewind failed:', err);
+      addMessage({
+        type: 'error',
+        content: `Failed to rewind: ${message}`,
+        timestamp: Date.now(),
+      });
+    }
+  }, [currentSessionId, chatMessages, setInput, inputValueRef, setAttachedImages, onNavigateToSession, addMessage, textareaRef, selectedProject]);
 
   // On WebSocket reconnect, re-fetch the current session's messages from the server
   // so missed streaming events are shown. Also reset isLoading.
@@ -318,6 +415,16 @@ function ChatInterface({
   return (
     <PermissionContext.Provider value={permissionContextValue}>
       <div className="flex h-full flex-col">
+        {branchInfo && (
+          <div className="flex items-center gap-2 border-b border-border/70 bg-muted/40 px-4 py-2 text-xs text-muted-foreground">
+            <span className="rounded-full bg-primary/10 px-2 py-0.5 font-medium text-primary">Branch</span>
+            <span className="truncate">{branchInfo.name || branchInfo.branchId}</span>
+            {branchInfo.parentName && (
+              <span className="truncate">from {branchInfo.parentName}</span>
+            )}
+          </div>
+        )}
+
         <ChatMessagesPane
           scrollContainerRef={scrollContainerRef}
           onWheel={handleScroll}
@@ -360,6 +467,8 @@ function ChatInterface({
           createDiff={createDiff}
           onFileOpen={onFileOpen}
           onShowSettings={onShowSettings}
+          onBranchFromMessage={handleBranchFromMessage}
+          onRewindToMessage={handleRewindToMessage}
           onGrantToolPermission={handleGrantToolPermission}
           autoExpandTools={autoExpandTools}
           showRawParameters={showRawParameters}
@@ -448,6 +557,7 @@ function ChatInterface({
         onHardRefreshProviderModels={hardRefreshProviderModels}
         currentSessionId={currentSessionId || selectedSession?.id || null}
         onSelectProviderModel={selectProviderModel}
+        onNavigateToSession={onNavigateToSession}
       />
     </PermissionContext.Provider>
   );

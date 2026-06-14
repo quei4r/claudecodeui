@@ -8,6 +8,7 @@ type SessionRow = {
   project_path: string | null;
   jsonl_path: string | null;
   custom_name: string | null;
+  parent_session_id: string | null;
   isArchived: number;
   created_at: string;
   updated_at: string;
@@ -15,7 +16,7 @@ type SessionRow = {
 
 type SessionMetadataLookupRow = Pick<
   SessionRow,
-  'session_id' | 'provider' | 'project_path' | 'jsonl_path' | 'custom_name' | 'isArchived' | 'created_at' | 'updated_at'
+  'session_id' | 'provider' | 'project_path' | 'jsonl_path' | 'custom_name' | 'parent_session_id' | 'isArchived' | 'created_at' | 'updated_at'
 >;
 
 function normalizeTimestamp(value?: string): string | null {
@@ -42,7 +43,8 @@ export const sessionsDb = {
     customName?: string,
     createdAt?: string,
     updatedAt?: string,
-    jsonlPath?: string | null
+    jsonlPath?: string | null,
+    parentSessionId?: string | null
   ): string {
     const db = getConnection();
     const createdAtValue = normalizeTimestamp(createdAt);
@@ -54,13 +56,14 @@ export const sessionsDb = {
     projectsDb.createProjectPath(normalizedProjectPath);
 
     db.prepare(
-      `INSERT INTO sessions (session_id, provider, custom_name, project_path, jsonl_path, isArchived, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, 0, COALESCE(?, CURRENT_TIMESTAMP), COALESCE(?, CURRENT_TIMESTAMP))
+      `INSERT INTO sessions (session_id, provider, custom_name, project_path, jsonl_path, parent_session_id, isArchived, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, 0, COALESCE(?, CURRENT_TIMESTAMP), COALESCE(?, CURRENT_TIMESTAMP))
        ON CONFLICT(session_id) DO UPDATE SET
          provider = excluded.provider,
          updated_at = excluded.updated_at,
          project_path = excluded.project_path,
          jsonl_path = excluded.jsonl_path,
+         parent_session_id = COALESCE(excluded.parent_session_id, sessions.parent_session_id),
          isArchived = 0,
          custom_name = COALESCE(excluded.custom_name, sessions.custom_name)`
     ).run(
@@ -69,6 +72,7 @@ export const sessionsDb = {
       customName ?? null,
       normalizedProjectPath,
       jsonlPath ?? null,
+      parentSessionId ?? null,
       createdAtValue,
       updatedAtValue
     );
@@ -89,7 +93,7 @@ export const sessionsDb = {
     const db = getConnection();
     const row = db
       .prepare(
-        `SELECT session_id, provider, project_path, jsonl_path, custom_name, isArchived, created_at, updated_at
+        `SELECT session_id, provider, project_path, jsonl_path, parent_session_id, custom_name, isArchived, created_at, updated_at
          FROM sessions
          WHERE session_id = ?
          ORDER BY updated_at DESC
@@ -104,7 +108,7 @@ export const sessionsDb = {
     const db = getConnection();
     return db
       .prepare(
-        `SELECT session_id, provider, project_path, jsonl_path, custom_name, isArchived, created_at, updated_at
+        `SELECT session_id, provider, project_path, jsonl_path, parent_session_id, custom_name, isArchived, created_at, updated_at
          FROM sessions
          WHERE isArchived = 0`
       )
@@ -119,7 +123,7 @@ export const sessionsDb = {
     const db = getConnection();
     return db
       .prepare(
-        `SELECT session_id, provider, project_path, jsonl_path, custom_name, isArchived, created_at, updated_at
+        `SELECT session_id, provider, project_path, jsonl_path, parent_session_id, custom_name, isArchived, created_at, updated_at
          FROM sessions
          WHERE isArchived = 1
          ORDER BY datetime(COALESCE(updated_at, created_at)) DESC, session_id DESC`
@@ -132,7 +136,7 @@ export const sessionsDb = {
     const normalizedProjectPath = normalizeProjectPath(projectPath);
     return db
       .prepare(
-        `SELECT session_id, provider, project_path, jsonl_path, custom_name, isArchived, created_at, updated_at
+        `SELECT session_id, provider, project_path, jsonl_path, parent_session_id, custom_name, isArchived, created_at, updated_at
          FROM sessions
          WHERE project_path = ?
            AND isArchived = 0`
@@ -149,7 +153,7 @@ export const sessionsDb = {
     const normalizedProjectPath = normalizeProjectPath(projectPath);
     return db
       .prepare(
-        `SELECT session_id, provider, project_path, jsonl_path, custom_name, isArchived, created_at, updated_at
+        `SELECT session_id, provider, project_path, jsonl_path, parent_session_id, custom_name, isArchived, created_at, updated_at
          FROM sessions
          WHERE project_path = ?`
       )
@@ -161,7 +165,7 @@ export const sessionsDb = {
     const normalizedProjectPath = normalizeProjectPath(projectPath);
     return db
       .prepare(
-        `SELECT session_id, provider, project_path, jsonl_path, custom_name, isArchived, created_at, updated_at
+        `SELECT session_id, provider, project_path, jsonl_path, parent_session_id, custom_name, isArchived, created_at, updated_at
          FROM sessions
          WHERE project_path = ?
            AND isArchived = 0
@@ -221,5 +225,106 @@ export const sessionsDb = {
   deleteSessionById(sessionId: string): boolean {
     const db = getConnection();
     return db.prepare('DELETE FROM sessions WHERE session_id = ?').run(sessionId).changes > 0;
+  },
+
+  createBranch(
+    branchId: string,
+    parentSessionId: string,
+    branchPointMessageId: string,
+    branchPointTimestamp: string,
+    name?: string
+  ): void {
+    const db = getConnection();
+    db.prepare(
+      `INSERT INTO session_branches (branch_id, parent_session_id, branch_point_message_id, branch_point_timestamp, name)
+       VALUES (?, ?, ?, ?, ?)
+       ON CONFLICT(branch_id) DO UPDATE SET
+         parent_session_id = excluded.parent_session_id,
+         branch_point_message_id = excluded.branch_point_message_id,
+         branch_point_timestamp = excluded.branch_point_timestamp,
+         name = COALESCE(excluded.name, session_branches.name)`
+    ).run(branchId, parentSessionId, branchPointMessageId, branchPointTimestamp, name ?? null);
+  },
+
+  getBranchById(branchId: string): {
+    branchId: string;
+    parentSessionId: string;
+    branchPointMessageId: string;
+    branchPointTimestamp: string | null;
+    name: string | null;
+    createdAt: string;
+  } | null {
+    const db = getConnection();
+    const row = db
+      .prepare(
+        `SELECT branch_id, parent_session_id, branch_point_message_id, branch_point_timestamp, name, created_at
+         FROM session_branches
+         WHERE branch_id = ?`
+      )
+      .get(branchId) as
+      | {
+          branch_id: string;
+          parent_session_id: string;
+          branch_point_message_id: string;
+          branch_point_timestamp: string | null;
+          name: string | null;
+          created_at: string;
+        }
+      | undefined;
+
+    if (!row) return null;
+    return {
+      branchId: row.branch_id,
+      parentSessionId: row.parent_session_id,
+      branchPointMessageId: row.branch_point_message_id,
+      branchPointTimestamp: row.branch_point_timestamp,
+      name: row.name,
+      createdAt: row.created_at,
+    };
+  },
+
+  getBranchesByParentSessionId(parentSessionId: string): Array<{
+    branchId: string;
+    parentSessionId: string;
+    branchPointMessageId: string;
+    branchPointTimestamp: string | null;
+    name: string | null;
+    createdAt: string;
+  }> {
+    const db = getConnection();
+    const rows = db
+      .prepare(
+        `SELECT branch_id, parent_session_id, branch_point_message_id, branch_point_timestamp, name, created_at
+         FROM session_branches
+         WHERE parent_session_id = ?
+         ORDER BY datetime(COALESCE(created_at, '1970-01-01T00:00:00Z')) DESC`
+      )
+      .all(parentSessionId) as Array<{
+        branch_id: string;
+        parent_session_id: string;
+        branch_point_message_id: string;
+        branch_point_timestamp: string | null;
+        name: string | null;
+        created_at: string;
+      }>;
+
+    return rows.map((row) => ({
+      branchId: row.branch_id,
+      parentSessionId: row.parent_session_id,
+      branchPointMessageId: row.branch_point_message_id,
+      branchPointTimestamp: row.branch_point_timestamp,
+      name: row.name,
+      createdAt: row.created_at,
+    }));
+  },
+
+  updateBranchName(branchId: string, name: string): void {
+    const db = getConnection();
+    db.prepare(`UPDATE session_branches SET name = ? WHERE branch_id = ?`).run(name, branchId);
+  },
+
+  deleteBranchById(branchId: string): boolean {
+    const db = getConnection();
+    return db.prepare('DELETE FROM session_branches WHERE branch_id = ?').run(branchId).changes > 0;
   },
 };
